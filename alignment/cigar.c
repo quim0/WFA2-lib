@@ -373,9 +373,9 @@ void cigar_copy(
          cigar_src->end_offset-cigar_src->begin_offset);
 }
 void cigar_discover_mismatches(
-    char* const pattern,
+    const char* const pattern,
     const int pattern_length,
-    char* const text,
+    const char* const text,
     const int text_length,
     cigar_t* const cigar) {
   // Refine adding mismatches
@@ -632,7 +632,7 @@ bool cigar_check_alignment(
         if (pattern[pattern_pos] != text[text_pos]) {
           if (verbose) {
             fprintf(stream,
-                "[AlignCheck] Alignment not matching (pattern[%d]=%c != text[%d]=%c)\n",
+                "[CIGAR] Alignment not matching (pattern[%d]=%c != text[%d]=%c)\n",
                 pattern_pos,pattern[pattern_pos],text_pos,text[text_pos]);
           }
           return false;
@@ -645,7 +645,7 @@ bool cigar_check_alignment(
         if (pattern[pattern_pos] == text[text_pos]) {
           if (verbose) {
             fprintf(stream,
-                "[AlignCheck] Alignment not mismatching (pattern[%d]=%c == text[%d]=%c)\n",
+                "[CIGAR] Alignment not mismatching (pattern[%d]=%c == text[%d]=%c)\n",
                 pattern_pos,pattern[pattern_pos],text_pos,text[text_pos]);
           }
           return false;
@@ -660,7 +660,7 @@ bool cigar_check_alignment(
         ++pattern_pos;
         break;
       default:
-        fprintf(stderr,"[AlignCheck] Unknown edit operation '%c'\n",operations[i]);
+        fprintf(stream,"[CIGAR] Unknown edit operation '%c'\n",operations[i]);
         exit(1);
         break;
     }
@@ -669,7 +669,7 @@ bool cigar_check_alignment(
   if (pattern_pos != pattern_length) {
     if (verbose) {
       fprintf(stream,
-          "[AlignCheck] Alignment incorrect length (pattern-aligned=%d,pattern-length=%d)\n",
+          "[CIGAR] Alignment incorrect length (pattern-aligned=%d,pattern-length=%d)\n",
           pattern_pos,pattern_length);
     }
     return false;
@@ -677,7 +677,7 @@ bool cigar_check_alignment(
   if (text_pos != text_length) {
     if (verbose) {
       fprintf(stream,
-          "[AlignCheck] Alignment incorrect length (text-aligned=%d,text-length=%d)\n",
+          "[CIGAR] Alignment incorrect length (text-aligned=%d,text-length=%d)\n",
           text_pos,text_length);
     }
     return false;
@@ -695,7 +695,8 @@ void cigar_print(
   // Check null
   if (cigar_is_null(cigar)) return;
   // Generate and print operations
-  char* const buffer = malloc(2*(cigar->end_offset-cigar->begin_offset)+10);
+  const int buffer_length = 2*(cigar->end_offset-cigar->begin_offset)+20;
+  char* const buffer = malloc(buffer_length);
   cigar_sprint(buffer,cigar,print_matches);
   fprintf(stream,"%s",buffer); // Print
   // Free
@@ -743,7 +744,8 @@ void cigar_print_SAM_CIGAR(
   // Check null
   if (cigar_is_null(cigar)) return;
   // Generate and print operations
-  char* const buffer = malloc(2*(cigar->end_offset-cigar->begin_offset));
+  const int buffer_length = 4*(cigar->end_offset-cigar->begin_offset)+20;
+  char* const buffer = malloc(buffer_length);
   cigar_sprint_SAM_CIGAR(buffer,cigar,show_mismatches);
   fprintf(stream,"%s",buffer); // Print
   // Free

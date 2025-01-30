@@ -32,6 +32,7 @@
 #ifndef CIGAR_H_
 #define CIGAR_H_
 
+#include <stdbool.h>
 #include "system/mm_allocator.h"
 #include "alignment/linear_penalties.h"
 #include "alignment/affine_penalties.h"
@@ -126,9 +127,9 @@ void cigar_copy(
     cigar_t* const cigar_src);
 
 void cigar_discover_mismatches(
-    char* const pattern,
+    const char* const pattern,
     const int pattern_length,
-    char* const text,
+    const char* const text,
     const int text_length,
     cigar_t* const cigar);
 

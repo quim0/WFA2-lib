@@ -526,6 +526,9 @@ bool wavefront_heuristic_cufoff(
   if (mwavefront == NULL || mwavefront->lo > mwavefront->hi) return false; // Not Dropped
   // Decrease wait steps
   --(wf_heuristic->steps_wait);
+  // Save lo/hi base
+  const int hi_base = mwavefront->hi;
+  const int lo_base = mwavefront->lo;
   // Select heuristic (WF-Adaptive)
   if (wf_heuristic->strategy & wf_heuristic_wfadaptive) {
     wavefront_heuristic_wfadaptive(wf_aligner,mwavefront,false);
@@ -545,6 +548,7 @@ bool wavefront_heuristic_cufoff(
     wavefront_heuristic_banded_adaptive(wf_aligner,mwavefront);
   }
   // Check wavefront length
+  if (lo_base == mwavefront->lo && hi_base == mwavefront->hi) return false; // No wavefronts pruned
   if (mwavefront->lo > mwavefront->hi) mwavefront->null = true;
   // DEBUG
   // const int wf_length_base = hi_base-lo_base+1;
@@ -555,13 +559,13 @@ bool wavefront_heuristic_cufoff(
   mwavefront->wf_elements_init_min = mwavefront->lo;
   mwavefront->wf_elements_init_max = mwavefront->hi;
   // Equate other wavefronts
-  if (distance_metric <= gap_linear)  return false; // Not Dropped
+  if (distance_metric <= gap_linear) return false; // Not Dropped
   // Cut-off the other wavefronts (same dimensions as M)
   wavefront_t* const i1wavefront = wf_components->i1wavefronts[score_mod];
   wavefront_t* const d1wavefront = wf_components->d1wavefronts[score_mod];
   wf_heuristic_equate(i1wavefront,mwavefront);
   wf_heuristic_equate(d1wavefront,mwavefront);
-  if (distance_metric == gap_affine)  return false; // Not Dropped
+  if (distance_metric == gap_affine) return false; // Not Dropped
   wavefront_t* const i2wavefront = wf_components->i2wavefronts[score_mod];
   wavefront_t* const d2wavefront = wf_components->d2wavefronts[score_mod];
   wf_heuristic_equate(i2wavefront,mwavefront);
