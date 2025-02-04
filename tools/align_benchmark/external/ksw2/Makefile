@@ -1,4 +1,4 @@
-CC=			gcc-13
+CC=			gcc
 CFLAGS=		-g -Wall -Wextra -Wc++-compat -O2
 CPPFLAGS=	-DHAVE_KALLOC
 INCLUDES=	-I.
