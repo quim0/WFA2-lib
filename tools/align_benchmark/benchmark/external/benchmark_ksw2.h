@@ -49,5 +49,32 @@ void benchmark_ksw2_extd2_sse(
     const bool approximate_max__drop,
     const int band_width,
     const int zdrop);
-
+#ifdef __AVX2__
+void benchmark_ksw2_extz2_avx2(
+    align_input_t* const align_input,
+    affine_penalties_t* const penalties,
+    const bool approximate_max__drop,
+    const int band_width,
+    const int zdrop);
+void benchmark_ksw2_extd2_avx2(
+    align_input_t* const align_input,
+    affine2p_penalties_t* const penalties,
+    const bool approximate_max__drop,
+    const int band_width,
+    const int zdrop);
+#endif
+#ifdef __AVX512BW__
+void benchmark_ksw2_extz2_avx512(
+    align_input_t* const align_input,
+    affine_penalties_t* const penalties,
+    const bool approximate_max__drop,
+    const int band_width,
+    const int zdrop);
+void benchmark_ksw2_extd2_avx512(
+    align_input_t* const align_input,
+    affine2p_penalties_t* const penalties,
+    const bool approximate_max__drop,
+    const int band_width,
+    const int zdrop);
+#endif
 #endif /* BENCHMARK_KSW2 */

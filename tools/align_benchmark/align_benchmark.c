@@ -496,6 +496,34 @@ void align_benchmark_run_algorithm(
             parameters.ksw2_approx_max__drop,
             parameters.ksw2_bandwidth,parameters.ksw2_zdrop);
         break;
+#ifdef __AVX2__
+      case alignment_ksw2_extz2_avx2:
+        benchmark_ksw2_extz2_avx2(
+            align_input,&parameters.affine_penalties,
+            parameters.ksw2_approx_max__drop,
+            parameters.ksw2_bandwidth,parameters.ksw2_zdrop);
+        break;
+      case alignment_ksw2_extd2_avx2:
+        benchmark_ksw2_extd2_avx2(
+            align_input,&parameters.affine2p_penalties,
+            parameters.ksw2_approx_max__drop,
+            parameters.ksw2_bandwidth,parameters.ksw2_zdrop);
+        break;
+#endif
+#ifdef __AVX512BW__
+      case alignment_ksw2_extz2_avx512:
+        benchmark_ksw2_extz2_avx512(
+            align_input,&parameters.affine_penalties,
+            parameters.ksw2_approx_max__drop,
+            parameters.ksw2_bandwidth,parameters.ksw2_zdrop);
+        break;
+      case alignment_ksw2_extd2_avx512:
+        benchmark_ksw2_extd2_avx512(
+            align_input,&parameters.affine2p_penalties,
+            parameters.ksw2_approx_max__drop,
+            parameters.ksw2_bandwidth,parameters.ksw2_zdrop);
+        break;
+#endif
       case alignment_lv89:
         benchmark_lv89(align_input);
         break;

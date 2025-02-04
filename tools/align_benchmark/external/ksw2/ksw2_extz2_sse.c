@@ -13,6 +13,11 @@
 #include <smmintrin.h>
 #endif
 
+#if defined(__AVX2__) || defined(__AVX512BW__)
+#include <immintrin.h>
+#endif
+
+
 #ifdef KSW_CPU_DISPATCH
 #ifdef __SSE4_1__
 void ksw_extz2_sse41(void *km, int qlen, const uint8_t *query, int tlen, const uint8_t *target, int8_t m, const int8_t *mat, int8_t q, int8_t e, int w, int zdrop, int end_bonus, int flag, ksw_extz_t *ez)
@@ -301,5 +306,567 @@ void ksw_extz2_sse(void *km, int qlen, const uint8_t *query, int tlen, const uin
 		}
 		kfree(km, mem2); kfree(km, off);
 	}
+	#undef __dp_code_block1
+	#undef __dp_code_block2
 }
 #endif // __SSE2__
+
+#ifdef __AVX2__
+__attribute__((optimize("O3")))
+void ksw_extz2_avx2(void *km, int qlen, const uint8_t *query, int tlen, const uint8_t *target, int8_t m, const int8_t *mat, 
+				  int8_t q, int8_t e, int w, int zdrop, int end_bonus, int flag, ksw_extz_t *ez)
+{
+#define _mm256_cvtsi32_si256(a)  _mm256_zextsi128_si256(_mm_cvtsi32_si128(a))
+#define _mm256_cvtsi128_si256(a) _mm256_zextsi128_si256(_mm256_castsi256_si128(a))
+#define __dp_code_block1												\
+	z 	= _mm256_add_epi8(_mm256_load_si256(&s[t]), qe2_);				\
+	xt1 = _mm256_load_si256(&x[t]);                     				\
+	__m256i shifted = _mm256_slli_si256(xt1, 1);						\
+	__m256i extract = _mm256_srli_si256(xt1, 15); 						\
+	__m256i swapped = _mm256_permute2f128_si256(extract, extract, 1);	\
+	tmp 	= _mm256_cvtsi128_si256(swapped);							\
+	swapped = _mm256_and_si256(swapped, mask); 							\
+	swapped = _mm256_or_si256(swapped, x1_);							\
+	xt1 	= _mm256_or_si256(swapped, shifted);						\
+	x1_ 	= tmp; 														\
+	vt1 	= _mm256_load_si256(&v[t]);                    				\
+	shifted = _mm256_slli_si256(vt1, 1);								\
+	extract = _mm256_srli_si256(vt1, 15); 								\
+	swapped = _mm256_permute2f128_si256(extract, extract, 1);			\
+	tmp 	= _mm256_cvtsi128_si256(swapped);							\
+	swapped = _mm256_and_si256(swapped, mask); 							\
+	swapped = _mm256_or_si256(swapped, v1_);							\
+	vt1 	= _mm256_or_si256(swapped, shifted);						\
+	v1_ 	= tmp; 														\
+	a 		= _mm256_add_epi8(xt1, vt1);           			        	\
+	ut 		= _mm256_load_si256(&u[t]);              			        \
+	b 		= _mm256_add_epi8(_mm256_load_si256(&y[t]), ut);    
+
+#define __dp_code_block2 																		\
+	z = _mm256_max_epu8(z,b);																	\
+	z = _mm256_min_epu8(z, max_sc_);															\
+	_mm256_store_si256((__m256i*)&u[t], _mm256_sub_epi8(z,vt1));								\
+	_mm256_store_si256((__m256i*)&v[t], _mm256_sub_epi8(z, ut));								\
+	z = _mm256_sub_epi8(z,q_);																	\
+	a = _mm256_sub_epi8(a, z);																	\
+	b = _mm256_sub_epi8(b, z);
+
+	int r, t, qe = q + e, n_col_, *off = 0, *off_end = 0, tlen_, qlen_, last_st, last_en, wl, wr, max_sc, min_sc;
+	int with_cigar = !(flag&KSW_EZ_SCORE_ONLY), approx_max = !!(flag&KSW_EZ_APPROX_MAX);
+	int32_t *H = 0, H0 = 0, last_H0_t = 0;
+	uint8_t *qr, *sf, *mem, *mem2 = 0;
+	__m256i q_, qe2_, zero_, flag1_, flag2_, flag8_, flag16_, sc_mch_, sc_mis_, sc_N_, m1_, max_sc_;
+	__m256i *u, *v, *x, *y, *s, *p = 0;
+
+
+	ksw_reset_extz(ez);
+	if (m <= 0 || qlen <= 0 || tlen <= 0) return;
+
+	zero_   = _mm256_set1_epi8(0);
+	q_      = _mm256_set1_epi8(q);
+	qe2_    = _mm256_set1_epi8((q + e) * 2);
+	flag1_  = _mm256_set1_epi8(1);
+	flag2_  = _mm256_set1_epi8(2);
+	flag8_  = _mm256_set1_epi8(0x08);
+	flag16_ = _mm256_set1_epi8(0x10);
+	sc_mch_ = _mm256_set1_epi8(mat[0]);
+	sc_mis_ = _mm256_set1_epi8(mat[1]);
+	sc_N_   = mat[m*m-1] == 0? _mm256_set1_epi8(-e) : _mm256_set1_epi8(mat[m*m-1]);
+	m1_     = _mm256_set1_epi8(m - 1); // wildcard
+	max_sc_ = _mm256_set1_epi8(mat[0] + (q + e) * 2);
+    __m256i mask = _mm256_set_epi64x(-1, -1, -1, -256);
+
+	if (w < 0) w = tlen > qlen? tlen : qlen;
+	wl = wr = w;
+	tlen_ = (tlen + 32 - 1) / 32;
+	n_col_ = qlen < tlen? qlen : tlen;
+	n_col_ = ((n_col_ < w + 1? n_col_ : w + 1) + 32 - 1) / 32 + 1;
+	qlen_ = (qlen + 32 - 1) / 32;
+	for (t = 1, max_sc = mat[0], min_sc = mat[1]; t < m * m; ++t) {
+		max_sc = max_sc > mat[t]? max_sc : mat[t];
+		min_sc = min_sc < mat[t]? min_sc : mat[t];
+	}
+	if (-min_sc > 2 * (q + e)) return; // otherwise, we won't see any mismatches
+
+	mem = (uint8_t*)kcalloc(km, tlen_ * 6 + qlen_ + 1, 32);
+	u = (__m256i*)(((size_t)mem + 32 - 1) >> 5 << 5); // 16-byte aligned
+	v = u + tlen_, x = v + tlen_, y = x + tlen_, s = y + tlen_, sf = (uint8_t*)(s + tlen_), qr = sf + tlen_ * 32;
+	if (!approx_max) {
+		H = (int32_t*)kmalloc(km, tlen_ * 32 * 4);
+		for (t = 0; t < tlen_ * 32; ++t) H[t] = KSW_NEG_INF;
+	}
+	if (with_cigar) {
+		mem2 = (uint8_t*)kmalloc(km, ((size_t)(qlen + tlen - 1) * n_col_ + 1) * 32);
+		p = (__m256i*)(((size_t)mem2 + 32 - 1) >> 5 << 5);
+		off = (int*)kmalloc(km, (qlen + tlen - 1) * sizeof(int) * 2);
+		off_end = off + qlen + tlen - 1;
+	}
+
+	for (t = 0; t < qlen; ++t) qr[t] = query[qlen - 1 - t];
+	memcpy(sf, target, tlen);
+
+	for (r = 0, last_st = last_en = -1; r < qlen + tlen - 1; ++r) {
+		int st = 0, en = tlen - 1, st0, en0, st_, en_;
+		int8_t x1, v1;
+		uint8_t *qrr = qr + (qlen - 1 - r), *u8 = (uint8_t*)u, *v8 = (uint8_t*)v;
+		__m256i x1_, v1_;
+		// find the boundaries
+		if (st < r - qlen + 1) st = r - qlen + 1;
+		if (en > r) en = r;
+		if (st < (r-wr+1)>>1) st = (r-wr+1)>>1; // take the ceil
+		if (en > (r+wl)>>1) en = (r+wl)>>1; // take the floor
+		if (st > en) {
+			ez->zdropped = 1;
+			break;
+		}
+		st0 = st, en0 = en;
+		st = st / 32 * 32, en = (en + 32) / 32 * 32 - 1;
+		// set boundary conditions
+		if (st > 0) {
+			if (st - 1 >= last_st && st - 1 <= last_en)
+				x1 = ((uint8_t*)x)[st - 1], v1 = v8[st - 1]; // (r-1,s-1) calculated in the last round
+			else x1 = v1 = 0; // not calculated; set to zeros
+		} else x1 = 0, v1 = r? q : 0;
+		if (en >= r) ((uint8_t*)y)[r] = 0, u8[r] = r? q : 0;
+		// loop fission: set scores first
+		if (!(flag & KSW_EZ_GENERIC_SC)) {
+			for (t = st0; t <= en0; t += 32) {
+				__m256i sq, st, tmp;
+				//better than loadu if data in L1
+				sq = _mm256_lddqu_si256((__m256i*)&sf[t]); 
+				st = _mm256_lddqu_si256((__m256i*)&qrr[t]);
+				__m256i msk = _mm256_or_si256(_mm256_cmpeq_epi8(sq, m1_), _mm256_cmpeq_epi8(st, m1_));
+				tmp = _mm256_cmpeq_epi8(sq, st);
+				tmp = _mm256_blendv_epi8(sc_mis_, sc_mch_, tmp);
+				tmp = _mm256_blendv_epi8(tmp,     sc_N_,   msk);
+				_mm256_storeu_si256((__m256i*)((int8_t*)s + t), tmp);
+			}
+		} else {
+			for (t = st0; t < (en0 % 8)+1; ++t)
+			{
+				((uint8_t*)s)[t] = mat[sf[t] * m + qrr[t]];
+			}
+			__m256i m256v 		 = _mm256_set1_epi32(m);
+			__m256i shuffle_mask = _mm256_setr_epi64x(0xFFFFFFFF0C080400, -1, 0xFFFFFFFF0C080400, -1);
+			__m256i perm_mask    = _mm256_setr_epi32(0,4,1,1,1,1,1,1);
+			uint8_t* s_aux = ((uint8_t*)s);
+			for (; t <= en0; t+=8)
+			{
+				__m256i sf_  = _mm256_cvtepi8_epi32(_mm_lddqu_si128((__m128i*)&sf[t]));
+				__m256i qrr_ = _mm256_cvtepi8_epi32(_mm_lddqu_si128((__m128i*)&qrr[t]));
+				__m256i val  = _mm256_add_epi32(_mm256_mullo_epi16(sf_, m256v), qrr_);
+				__m256i sti  = _mm256_i32gather_epi32((const int*)&mat[0], val, 1);
+				sti  = _mm256_shuffle_epi8(sti, shuffle_mask);
+				sti  = _mm256_permutevar8x32_epi32(sti, perm_mask);
+				_mm_storeu_si64(&s_aux[t], _mm256_castsi256_si128(sti));				
+			}
+		}
+
+		// core loop
+		x1_ = _mm256_cvtsi32_si256((uint8_t)x1);
+		v1_ = _mm256_cvtsi32_si256((uint8_t)v1);
+		st_ = st / 32, en_ = en / 32;
+		assert(en_ - st_ + 1 <= n_col_);
+		if (!with_cigar) { // score only
+			for (t = st_; t <= en_; ++t) {
+				__m256i z, a, b, xt1, vt1, ut, tmp;
+				__dp_code_block1;
+				z = _mm256_max_epi8(z, a);  // z = z > a? z : a (signed)                   
+				__dp_code_block2;
+				_mm256_store_si256((__m256i*)&x[t], _mm256_max_epi8(a, zero_));
+				_mm256_store_si256((__m256i*)&y[t], _mm256_max_epi8(b, zero_));
+			}
+		} else if (!(flag&KSW_EZ_RIGHT)) { // gap left-alignment
+			__m256i *pr = p + (size_t)r * n_col_ - st_;
+			off[r] = st, off_end[r] = en;
+			for (t = st_; t <= en_; ++t) {
+				__m256i d, z, a, b, xt1, vt1, ut, tmp;
+				__dp_code_block1;
+				d   = _mm256_and_si256(_mm256_cmpgt_epi8(a,z), flag1_);  // d = a > z? 1 : 0
+				z   = _mm256_max_epi8(z, a); 				 // z = z > a? z : a (signed)
+				tmp = _mm256_cmpgt_epi8(b, z); 
+				d 	= _mm256_blendv_epi8(d, flag2_, tmp);     // d = b > z? 2 : d
+				__dp_code_block2;
+				tmp = _mm256_cmpgt_epi8(a, zero_); 
+				_mm256_store_si256(&x[t], _mm256_and_si256(tmp, a));
+				d   = _mm256_or_si256(d, _mm256_and_si256(tmp, flag8_)); // d = a > 0? 0x08 : 0
+				tmp = _mm256_cmpgt_epi8(b, zero_);
+				_mm256_store_si256(&y[t], _mm256_and_si256(tmp, b));
+				d   = _mm256_or_si256(d, _mm256_and_si256(tmp, flag16_)); // d = b > 0? 0x10 : 0
+				_mm256_store_si256(&pr[t], d);
+			}
+		} else { // gap right-alignment
+			__m256i *pr = p + (size_t)r * n_col_ - st_;
+			off[r] = st, off_end[r] = en;
+			for (t = st_; t <= en_; ++t) {
+				__m256i d, z, a, b, xt1, vt1, ut, tmp;
+				__dp_code_block1;
+				d = _mm256_andnot_si256(_mm256_cmpgt_epi8(z, a), flag1_); 			 // d = z > a? 0 : 1
+				z = _mm256_max_epi8(z, a);										// z = z > a? z : a (signed)
+				d = _mm256_blendv_epi8(flag2_, d, _mm256_cmpgt_epi8(z, b)); // d = z > b? d : 2
+				__dp_code_block2;
+				tmp = _mm256_cmpgt_epi8(zero_, a);
+				_mm256_store_si256(&x[t], _mm256_andnot_si256(tmp, a));
+				d = _mm256_or_si256(d, _mm256_andnot_si256(tmp, flag8_)); // d = 0 > a? 0 : 0x08
+				tmp = _mm256_cmpgt_epi8(zero_, b);
+				_mm256_store_si256(&y[t], _mm256_andnot_si256(tmp, b));
+				d = _mm256_or_si256(d, _mm256_andnot_si256(tmp, flag16_)); // d = 0 > b? 0 : 0x10
+				_mm256_store_si256(&pr[t], d);
+			}
+		}
+		if (!approx_max) { // find the exact max with a 32-bit score array
+			int32_t max_H, max_t;
+			// compute H[], max_H and max_t
+			if (r > 0) {
+				int32_t HH[8], tt[8], en1 = st0 + (en0 - st0) / 8 * 8, i;
+				__m256i max_H_, max_t_, qe_;
+				max_H = H[en0] = en0 > 0? H[en0-1] + u8[en0] - qe : H[en0] + v8[en0] - qe; // special casing the last element
+				max_t = en0;
+				max_H_ = _mm256_set1_epi32(max_H);
+				max_t_ = _mm256_set1_epi32(max_t);
+				qe_    = _mm256_set1_epi32(q + e);
+				for (t = st0; t < en1; t += 8) { // this implements: H[t]+=v8[t]-qe; if(H[t]>max_H) max_H=H[t],max_t=t;
+					__m256i H1, tmp, t_;
+					H1 = _mm256_lddqu_si256((__m256i*)&H[t]);
+					t_ = _mm256_cvtepi8_epi32(_mm_lddqu_si128((__m128i*)&v8[t]));
+					H1 = _mm256_add_epi32(H1, t_);
+					H1 = _mm256_sub_epi32(H1, qe_);
+					_mm256_storeu_si256((__m256i*)&H[t], H1);
+					t_ = _mm256_set1_epi32(t);
+					tmp= _mm256_cmpgt_epi32(H1, max_H_);
+					max_H_ = _mm256_blendv_epi8(max_H_, H1, tmp);
+					max_t_ = _mm256_blendv_epi8(max_t_, t_, tmp);
+				}
+				_mm256_storeu_si256((__m256i*)HH, max_H_);
+				_mm256_storeu_si256((__m256i*)tt, max_t_);
+				for (i = 0; i < 8; ++i)
+					if (max_H < HH[i]) max_H = HH[i], max_t = tt[i] + i;
+				for (; t < en0; ++t) { // for the rest of values that haven't been computed with SSE
+					H[t] += (int32_t)v8[t] - qe;
+					if (H[t] > max_H)
+						max_H = H[t], max_t = t;
+				}
+			} else H[0] = v8[0] - qe - qe, max_H = H[0], max_t = 0; // special casing r==0
+			// update ez
+			if (en0 == tlen - 1 && H[en0] > ez->mte)
+				ez->mte = H[en0], ez->mte_q = r - en;
+			if (r - st0 == qlen - 1 && H[st0] > ez->mqe)
+				ez->mqe = H[st0], ez->mqe_t = st0;
+			if (ksw_apply_zdrop(ez, 1, max_H, r, max_t, zdrop, e)) break;
+			if (r == qlen + tlen - 2 && en0 == tlen - 1)
+				ez->score = H[tlen - 1];
+		} else { // find approximate max; Z-drop might be inaccurate, too.
+			if (r > 0) {
+				if (last_H0_t >= st0 && last_H0_t <= en0 && last_H0_t + 1 >= st0 && last_H0_t + 1 <= en0) {
+					int32_t d0 = v8[last_H0_t] - qe;
+					int32_t d1 = u8[last_H0_t + 1] - qe;
+					if (d0 > d1) H0 += d0;
+					else H0 += d1, ++last_H0_t;
+				} else if (last_H0_t >= st0 && last_H0_t <= en0) {
+					H0 += v8[last_H0_t] - qe;
+				} else {
+					++last_H0_t, H0 += u8[last_H0_t] - qe;
+				}
+				if ((flag & KSW_EZ_APPROX_DROP) && ksw_apply_zdrop(ez, 1, H0, r, last_H0_t, zdrop, e)) break;
+			} else H0 = v8[0] - qe - qe, last_H0_t = 0;
+			if (r == qlen + tlen - 2 && en0 == tlen - 1)
+				ez->score = H0;
+		}
+		last_st = st, last_en = en;
+		//for (t = st0; t <= en0; ++t) printf("(%d,%d)\t(%d,%d,%d,%d)\t%d\n", r, t, ((int8_t*)u)[t], ((int8_t*)v)[t], ((int8_t*)x)[t], ((int8_t*)y)[t], H[t]); // for debugging
+	}
+	kfree(km, mem);
+	if (!approx_max) kfree(km, H);
+	if (with_cigar) { // backtrack
+		int rev_cigar = !!(flag & KSW_EZ_REV_CIGAR);
+		if (!ez->zdropped && !(flag&KSW_EZ_EXTZ_ONLY)) {
+			ksw_backtrack(km, 1, rev_cigar, 0, (uint8_t*)p, off, off_end, n_col_*32, tlen-1, qlen-1, &ez->m_cigar, &ez->n_cigar, &ez->cigar);
+		} else if (!ez->zdropped && (flag&KSW_EZ_EXTZ_ONLY) && ez->mqe + end_bonus > (int)ez->max) {
+			ez->reach_end = 1;
+			ksw_backtrack(km, 1, rev_cigar, 0, (uint8_t*)p, off, off_end, n_col_*32, ez->mqe_t, qlen-1, &ez->m_cigar, &ez->n_cigar, &ez->cigar);
+		} else if (ez->max_t >= 0 && ez->max_q >= 0) {
+			ksw_backtrack(km, 1, rev_cigar, 0, (uint8_t*)p, off, off_end, n_col_*32, ez->max_t, ez->max_q, &ez->m_cigar, &ez->n_cigar, &ez->cigar);
+		}
+		kfree(km, mem2); kfree(km, off);
+	}
+	#undef __dp_code_block1
+	#undef __dp_code_block2
+}
+#endif
+
+#ifdef __AVX512BW__
+__attribute__((optimize("O3")))
+void ksw_extz2_avx512(void *km, int qlen, const uint8_t *query, int tlen, const uint8_t *target, int8_t m, const int8_t *mat, 
+				  int8_t q, int8_t e, int w, int zdrop, int end_bonus, int flag, ksw_extz_t *ez)
+{
+#define _mm512_cvtsi32_si512(a)  _mm512_zextsi128_si512(_mm_cvtsi32_si128(a))
+#define _mm512_cvtsi128_si512(a) _mm512_zextsi128_si512(_mm512_castsi512_si128(a))
+#define __dp_code_block1										\
+	z   	= _mm512_add_epi8(_mm512_load_si512(&s[t]), qe2_);	\
+	xt1 	= _mm512_load_si512(&x[t]);   						\
+	__m512i shifted = _mm512_bslli_epi128(xt1, 1);				\
+	__m512i extract = _mm512_bsrli_epi128(xt1, 15);				\
+	extract = _mm512_shuffle_i32x4(extract, extract, 0x93);		\
+	xt1 	= _mm512_or_si512(shifted, extract);				\
+	tmp 	= _mm512_cvtsi128_si512(xt1);						\
+	xt1 	= _mm512_mask_blend_epi8(1, xt1, x1_);				\
+	x1_ 	= tmp;												\
+	vt1 	= _mm512_load_si512(&v[t]);							\
+	shifted = _mm512_bslli_epi128(vt1, 1);						\
+	extract = _mm512_bsrli_epi128(vt1, 15);						\
+	extract = _mm512_shuffle_i32x4(extract, extract, 0x93);		\
+	vt1 	= _mm512_or_si512(shifted, extract);				\
+	tmp 	= _mm512_cvtsi128_si512(vt1);						\
+	vt1 	= _mm512_mask_blend_epi8(1, vt1, v1_);				\
+	v1_ 	= tmp;												\
+	a   	= _mm512_add_epi8(xt1, vt1);						\
+	ut  	= _mm512_load_si512(&u[t]);							\
+	b   	= _mm512_add_epi8(_mm512_load_si512(&y[t]), ut);
+
+#define __dp_code_block2 										    \
+	z = _mm512_max_epu8(z,b);									    \
+	z = _mm512_min_epu8(z, max_sc_);							    \
+	_mm512_store_si512((__m512i*)&u[t], _mm512_sub_epi8(z,vt1));    \
+	_mm512_store_si512((__m512i*)&v[t], _mm512_sub_epi8(z, ut));    \
+	z = _mm512_sub_epi8(z,q_);									    \
+	a = _mm512_sub_epi8(a, z);									    \
+	b = _mm512_sub_epi8(b, z);
+
+	int r, t, qe = q + e, n_col_, *off = 0, *off_end = 0, tlen_, qlen_, last_st, last_en, wl, wr, max_sc, min_sc;
+	int with_cigar = !(flag&KSW_EZ_SCORE_ONLY), approx_max = !!(flag&KSW_EZ_APPROX_MAX);
+	int32_t *H = 0, H0 = 0, last_H0_t = 0;
+	uint8_t *qr, *sf, *mem, *mem2 = 0;
+	__m512i q_, qe2_, zero_, flag1_, flag2_, flag8_, flag16_, sc_mch_, sc_mis_, sc_N_, m1_, max_sc_;
+	__m512i *u, *v, *x, *y, *s, *p = 0;
+
+
+	ksw_reset_extz(ez);
+	if (m <= 0 || qlen <= 0 || tlen <= 0) return;
+
+	zero_   = _mm512_set1_epi8(0);
+	q_      = _mm512_set1_epi8(q);
+	qe2_    = _mm512_set1_epi8((q + e) * 2);
+	flag1_  = _mm512_set1_epi8(1);
+	flag2_  = _mm512_set1_epi8(2);
+	flag8_  = _mm512_set1_epi8(0x08);
+	flag16_ = _mm512_set1_epi8(0x10);
+	sc_mch_ = _mm512_set1_epi8(mat[0]);
+	sc_mis_ = _mm512_set1_epi8(mat[1]);
+	sc_N_   = mat[m*m-1] == 0? _mm512_set1_epi8(-e) : _mm512_set1_epi8(mat[m*m-1]);
+	m1_     = _mm512_set1_epi8(m - 1); // wildcard
+	max_sc_ = _mm512_set1_epi8(mat[0] + (q + e) * 2);
+
+	if (w < 0) w = tlen > qlen? tlen : qlen;
+	wl = wr = w;
+	tlen_ = (tlen + 64 - 1) / 64;
+	n_col_ = qlen < tlen? qlen : tlen;
+	n_col_ = ((n_col_ < w + 1? n_col_ : w + 1) + 64 - 1) / 64 + 1;
+	qlen_ = (qlen + 64 - 1) / 64;
+	for (t = 1, max_sc = mat[0], min_sc = mat[1]; t < m * m; ++t) {
+		max_sc = max_sc > mat[t]? max_sc : mat[t];
+		min_sc = min_sc < mat[t]? min_sc : mat[t];
+	}
+	if (-min_sc > 2 * (q + e)) return; // otherwise, we won't see any mismatches
+
+	mem = (uint8_t*)kcalloc(km, tlen_ * 6 + qlen_ + 1, 64);
+	u = (__m512i*)(((size_t)mem + 64 - 1) >> 6 << 6); // 16-byte aligned
+	v = u + tlen_, x = v + tlen_, y = x + tlen_, s = y + tlen_, sf = (uint8_t*)(s + tlen_), qr = sf + tlen_ * 64;
+	if (!approx_max) {
+		H = (int32_t*)kmalloc(km, tlen_ * 64 * 4);
+		for (t = 0; t < tlen_ * 64; ++t) H[t] = KSW_NEG_INF;
+	}
+	if (with_cigar) {
+		mem2 = (uint8_t*)kmalloc(km, ((size_t)(qlen + tlen - 1) * n_col_ + 1) * 64);
+		p = (__m512i*)(((size_t)mem2 + 64 - 1) >> 6 << 6);
+		off = (int*)kmalloc(km, (qlen + tlen - 1) * sizeof(int) * 2);
+		off_end = off + qlen + tlen - 1;
+	}
+
+	for (t = 0; t < qlen; ++t) qr[t] = query[qlen - 1 - t];
+	memcpy(sf, target, tlen);
+
+	for (r = 0, last_st = last_en = -1; r < qlen + tlen - 1; ++r) {
+		int st = 0, en = tlen - 1, st0, en0, st_, en_;
+		int8_t x1, v1;
+		uint8_t *qrr = qr + (qlen - 1 - r), *u8 = (uint8_t*)u, *v8 = (uint8_t*)v;
+		__m512i x1_, v1_;
+		// find the boundaries
+		if (st < r - qlen + 1) st = r - qlen + 1;
+		if (en > r) en = r;
+		if (st < (r-wr+1)>>1) st = (r-wr+1)>>1; // take the ceil
+		if (en > (r+wl)>>1) en = (r+wl)>>1; // take the floor
+		if (st > en) {
+			ez->zdropped = 1;
+			break;
+		}
+		st0 = st, en0 = en;
+		st = st / 64 * 64, en = (en + 64) / 64 * 64 - 1;
+		// set boundary conditions
+		if (st > 0) {
+			if (st - 1 >= last_st && st - 1 <= last_en)
+				x1 = ((uint8_t*)x)[st - 1], v1 = v8[st - 1]; // (r-1,s-1) calculated in the last round
+			else x1 = v1 = 0; // not calculated; set to zeros
+		} else x1 = 0, v1 = r? q : 0;
+		if (en >= r) ((uint8_t*)y)[r] = 0, u8[r] = r? q : 0;
+		// loop fission: set scores first
+		if (!(flag & KSW_EZ_GENERIC_SC)) {
+			for (t = st0; t <= en0; t += 64) {
+				__m512i sq, st, tmp;
+				sq = _mm512_loadu_si512((__m512i*)&sf[t]);
+				st = _mm512_loadu_si512((__m512i*)&qrr[t]);
+				__mmask64 msk = _mm512_cmpeq_epi8_mask(sq, m1_) | _mm512_cmpeq_epi8_mask(st, m1_);
+				tmp = _mm512_mask_blend_epi8(_mm512_cmpeq_epi8_mask(sq, st), sc_mis_, sc_mch_);
+				tmp = _mm512_mask_blend_epi8(msk, tmp, sc_N_);
+				_mm512_storeu_si512((__m512i*)((int8_t*)s + t), tmp);
+			}
+		} else {
+			for (t = st0; t < (en0 % 8)+1; ++t)
+			{
+				((uint8_t*)s)[t] = mat[sf[t] * m + qrr[t]];
+			}
+			__m256i m256v 		 = _mm256_set1_epi32(m);
+			__m256i shuffle_mask = _mm256_setr_epi64x(0xFFFFFFFF0C080400, -1, 0xFFFFFFFF0C080400, -1);
+			__m256i perm_mask    = _mm256_setr_epi32(0,4,1,1,1,1,1,1);
+			uint8_t* s_aux = ((uint8_t*)s);
+			for (; t <= en0; t+=8)
+			{
+				__m256i sf_  = _mm256_cvtepi8_epi32(_mm_lddqu_si128((__m128i*)&sf[t]));
+				__m256i qrr_ = _mm256_cvtepi8_epi32(_mm_lddqu_si128((__m128i*)&qrr[t]));
+				__m256i val  = _mm256_add_epi32(_mm256_mullo_epi16(sf_, m256v), qrr_);
+				__m256i sti  = _mm256_i32gather_epi32((const int*)&mat[0], val, 1);
+				sti  = _mm256_shuffle_epi8(sti, shuffle_mask);
+				sti  = _mm256_permutevar8x32_epi32(sti, perm_mask);
+				_mm_storeu_si64(&s_aux[t], _mm256_castsi256_si128(sti));				
+			}
+		}
+
+		// core loop
+		x1_ = _mm512_cvtsi32_si512((uint8_t)x1);
+		v1_ = _mm512_cvtsi32_si512((uint8_t)v1);
+		st_ = st / 64, en_ = en / 64;
+		assert(en_ - st_ + 1 <= n_col_);
+		if (!with_cigar) { // score only
+			for (t = st_; t <= en_; ++t) {
+				__m512i z, a, b, xt1, vt1, ut, tmp;
+				__dp_code_block1;
+				z = _mm512_max_epi8(z, a);  // z = z > a? z : a (signed)                   
+				__dp_code_block2;
+				_mm512_store_si512((__m512i*)&x[t], _mm512_max_epi8(a, zero_));
+				_mm512_store_si512((__m512i*)&y[t], _mm512_max_epi8(b, zero_));
+			}
+		} else if (!(flag&KSW_EZ_RIGHT)) { // gap left-alignment
+			__m512i *pr = p + (size_t)r * n_col_ - st_;
+			off[r] = st, off_end[r] = en;
+			for (t = st_; t <= en_; ++t) {
+				__m512i d, z, a, b, xt1, vt1, ut, tmp;
+				__dp_code_block1;
+				d = _mm512_mask_blend_epi8(_mm512_cmpgt_epi8_mask(a, z), zero_, flag1_); 			// d = a > z? 1 : 0
+				z = _mm512_max_epi8(z, a);                          		  						// z = z > a ? z : a (signed)
+				d = _mm512_mask_blend_epi8(_mm512_cmpgt_epi8_mask(b, z),     d, flag2_);			// d = b > z? 2 : d
+				__dp_code_block2;
+				__mmask64 cmp_mask = _mm512_cmpgt_epi8_mask(a, zero_);								
+				_mm512_store_si512((__m512i*)&x[t], _mm512_mask_blend_epi8(cmp_mask, zero_, a));	
+				d = _mm512_or_si512(d, _mm512_mask_blend_epi8(cmp_mask, zero_, flag8_));  			// d = a > 0? 0x08 : 0
+				cmp_mask = _mm512_cmpgt_epi8_mask(b, zero_);										
+				_mm512_store_si512((__m512i*)&y[t] ,_mm512_mask_blend_epi8(cmp_mask, zero_, b));
+				d = _mm512_or_si512(d, _mm512_mask_blend_epi8(cmp_mask, zero_, flag16_)); 			// d = b > 0? 0x10 : 0
+				_mm512_store_si512(&pr[t], d);
+			}
+		} else { // gap right-alignment
+			__m512i *pr = p + (size_t)r * n_col_ - st_;
+			off[r] = st, off_end[r] = en;
+			for (t = st_; t <= en_; ++t) {
+				__m512i d, z, a, b, xt1, vt1, ut, tmp;
+				__dp_code_block1;
+				d = _mm512_mask_blend_epi8(_mm512_cmpgt_epi8_mask(z, a), flag1_, zero_); 			// d = z > a? 0 : 1
+				z = _mm512_max_epi8(z, a);                          		  						// z = z > a ? z : a (signed)
+				d = _mm512_mask_blend_epi8(_mm512_cmpgt_epi8_mask(z, b), flag2_,    d);				// d = z > b? d : 2
+				__dp_code_block2;
+				__mmask64 cmp_mask = _mm512_cmpgt_epi8_mask(zero_, a);								// 0 > a ? 1 : 0 
+				_mm512_store_si512((__m512i*)&x[t], _mm512_mask_blend_epi8(cmp_mask, a, zero_));	// tmp = 0 > a? 0 : a 
+				d = _mm512_or_si512(d, _mm512_mask_blend_epi8(cmp_mask, flag8_, zero_));  			// 0 > a? 0 : 0x08
+				cmp_mask = _mm512_cmpgt_epi8_mask(zero_, b);										// 0 > b ? 1 : 0
+				_mm512_store_si512((__m512i*)&y[t] ,_mm512_mask_blend_epi8(cmp_mask, b, zero_));	// 0 > b ? 0 : b
+				d = _mm512_or_si512(d, _mm512_mask_blend_epi8(cmp_mask, flag16_, zero_)); 			// d = 0 > b? 0 : 0x10
+				_mm512_store_si512(&pr[t], d);
+			}
+		}
+		if (!approx_max) { // find the exact max with a 32-bit score array
+			int32_t max_H, max_t;
+			// compute H[], max_H and max_t
+			if (r > 0) {
+				int32_t HH[16], tt[16], en1 = st0 + (en0 - st0) / 16 * 16, i;
+				__m512i max_H_, max_t_, qe_;
+				max_H = H[en0] = en0 > 0? H[en0-1] + u8[en0] - qe : H[en0] + v8[en0] - qe; // special casing the last element
+				max_t = en0;
+				max_H_ = _mm512_set1_epi32(max_H);
+				max_t_ = _mm512_set1_epi32(max_t);
+				qe_    = _mm512_set1_epi32(q + e);
+				for (t = st0; t < en1; t += 16) { // this implements: H[t]+=v8[t]-qe; if(H[t]>max_H) max_H=H[t],max_t=t;
+					__m512i H1, t_;
+					H1 = _mm512_loadu_si512((__m512i*)&H[t]);
+					t_ = _mm512_cvtepi8_epi32(_mm_lddqu_si128((__m128i*)&v8[t]));
+					H1 = _mm512_add_epi32(H1, t_);
+					H1 = _mm512_sub_epi32(H1, qe_);
+					_mm512_storeu_si512((__m512i*)&H[t], H1);
+					t_  = _mm512_set1_epi32(t);
+					__mmask64 tmp = _mm512_cmpgt_epi32_mask(H1, max_H_);
+					max_H_ = _mm512_mask_blend_epi32(tmp, max_H_, H1);
+					max_t_ = _mm512_mask_blend_epi32(tmp, max_t_, t_);			
+				}
+				_mm512_storeu_si512((__m512i*)HH, max_H_);
+				_mm512_storeu_si512((__m512i*)tt, max_t_);
+				for (i = 0; i < 16; ++i)
+					if (max_H < HH[i]) max_H = HH[i], max_t = tt[i] + i;
+				for (; t < en0; ++t) { // for the rest of values that haven't been computed with SSE
+					H[t] += v8[t] - qe;
+					if (H[t] > max_H)
+						max_H = H[t], max_t = t;
+				}
+			} else H[0] = v8[0] - qe - qe, max_H = H[0], max_t = 0; // special casing r==0
+			// update ez
+			if (en0 == tlen - 1 && H[en0] > ez->mte)
+				ez->mte = H[en0], ez->mte_q = r - en;
+			if (r - st0 == qlen - 1 && H[st0] > ez->mqe)
+				ez->mqe = H[st0], ez->mqe_t = st0;
+			if (ksw_apply_zdrop(ez, 1, max_H, r, max_t, zdrop, e)) break;
+			if (r == qlen + tlen - 2 && en0 == tlen - 1)
+				ez->score = H[tlen - 1];
+		} else { // find approximate max; Z-drop might be inaccurate, too.
+			if (r > 0) {
+				if (last_H0_t >= st0 && last_H0_t <= en0 && last_H0_t + 1 >= st0 && last_H0_t + 1 <= en0) {
+					int32_t d0 = v8[last_H0_t] - qe;
+					int32_t d1 = u8[last_H0_t + 1] - qe;
+					if (d0 > d1) H0 += d0;
+					else H0 += d1, ++last_H0_t;
+				} else if (last_H0_t >= st0 && last_H0_t <= en0) {
+					H0 += v8[last_H0_t] - qe;
+				} else {
+					++last_H0_t, H0 += u8[last_H0_t] - qe;
+				}
+				if ((flag & KSW_EZ_APPROX_DROP) && ksw_apply_zdrop(ez, 1, H0, r, last_H0_t, zdrop, e)) break;
+			} else H0 = v8[0] - qe - qe, last_H0_t = 0;
+			if (r == qlen + tlen - 2 && en0 == tlen - 1)
+				ez->score = H0;
+		}
+		last_st = st, last_en = en;
+		//for (t = st0; t <= en0; ++t) printf("(%d,%d)\t(%d,%d,%d,%d)\t%d\n", r, t, ((int8_t*)u)[t], ((int8_t*)v)[t], ((int8_t*)x)[t], ((int8_t*)y)[t], H[t]); // for debugging
+	}
+	kfree(km, mem);
+	if (!approx_max) kfree(km, H);
+	if (with_cigar) { // backtrack
+		int rev_cigar = !!(flag & KSW_EZ_REV_CIGAR);
+		if (!ez->zdropped && !(flag&KSW_EZ_EXTZ_ONLY)) {
+			ksw_backtrack(km, 1, rev_cigar, 0, (uint8_t*)p, off, off_end, n_col_*64, tlen-1, qlen-1, &ez->m_cigar, &ez->n_cigar, &ez->cigar);
+		} else if (!ez->zdropped && (flag&KSW_EZ_EXTZ_ONLY) && ez->mqe + end_bonus > (int)ez->max) {
+			ez->reach_end = 1;
+			ksw_backtrack(km, 1, rev_cigar, 0, (uint8_t*)p, off, off_end, n_col_*64, ez->mqe_t, qlen-1, &ez->m_cigar, &ez->n_cigar, &ez->cigar);
+		} else if (ez->max_t >= 0 && ez->max_q >= 0) {
+			ksw_backtrack(km, 1, rev_cigar, 0, (uint8_t*)p, off, off_end, n_col_*64, ez->max_t, ez->max_q, &ez->m_cigar, &ez->n_cigar, &ez->cigar);
+		}
+		kfree(km, mem2); kfree(km, off);
+	}
+	#undef __dp_code_block1
+	#undef __dp_code_block2	
+}
+#endif

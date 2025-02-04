@@ -72,6 +72,14 @@ typedef enum {
   alignment_gaba_aband,
   alignment_ksw2_extz2_sse,
   alignment_ksw2_extd2_sse,
+#ifdef __AVX2__
+  alignment_ksw2_extz2_avx2,
+  alignment_ksw2_extd2_avx2,
+#endif
+#ifdef __AVX512BW__
+  alignment_ksw2_extz2_avx512,
+  alignment_ksw2_extd2_avx512,
+#endif
   alignment_lv89,
   alignment_parasail_nw_stripped,
   alignment_parasail_nw_scan,
