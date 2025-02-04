@@ -75,10 +75,12 @@ typedef enum {
 #ifdef __AVX2__
   alignment_ksw2_extz2_avx2,
   alignment_ksw2_extd2_avx2,
+  alignment_mmfast_extd2_avx2,
 #endif
 #ifdef __AVX512BW__
   alignment_ksw2_extz2_avx512,
   alignment_ksw2_extd2_avx512,
+  alignment_mmfast_extd2_avx512,
 #endif
   alignment_lv89,
   alignment_parasail_nw_stripped,

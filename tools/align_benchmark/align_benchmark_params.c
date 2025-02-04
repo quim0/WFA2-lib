@@ -154,10 +154,12 @@ void usage() {
 #ifdef __AVX2__
       "              ksw2-extz2-avx2      (Gap-affine)                         \n"
       "              ksw2-extd2-avx2      (Gap-affine-2pieces)                 \n"
+      "              mmfast-extd2-avx2    (Gap-affine-2pieces)                 \n"
 #endif
 #ifdef __AVX512BW__
       "              ksw2-extz2-avx512      (Gap-affine)                       \n"
       "              ksw2-extd2-avx512      (Gap-affine-2pieces)               \n"
+      "              mmfast-extd2-avx512    (Gap-affine-2pieces)               \n"
 #endif
       "            [External/LV89]                                             \n"
       "              lv89                 (Edit)[score-only]                   \n"
@@ -362,12 +364,16 @@ void parse_arguments(
         parameters.algorithm = alignment_ksw2_extz2_avx2;
       } else if (strcmp(optarg,"ksw2-extd2-avx2")==0) {
         parameters.algorithm = alignment_ksw2_extd2_avx2;
+      } else if (strcmp(optarg,"mmfast-extd2-avx2")==0) {
+        parameters.algorithm = alignment_mmfast_extd2_avx2;
 #endif
 #ifdef __AVX512BW__
       } else if (strcmp(optarg,"ksw2-extz2-avx512")==0) {
         parameters.algorithm = alignment_ksw2_extz2_avx512;
       } else if (strcmp(optarg,"ksw2-extd2-avx512")==0) {
         parameters.algorithm = alignment_ksw2_extd2_avx512;
+      } else if (strcmp(optarg,"mmfast-extd2-avx512")==0) {
+        parameters.algorithm = alignment_mmfast_extd2_avx512;
 #endif
       // External (LV89)
       } else if (strcmp(optarg,"lv89")==0) {
