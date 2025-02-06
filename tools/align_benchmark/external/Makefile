@@ -2,19 +2,25 @@
 # Compile rules
 ###############################################################################
 BUILD_RULES=bitpal_build \
-            blockaligner_build \
             daligner_wave_build \
             edlib_build \
             ksw2_build \
-            gaba_build \
             parasail_build \
             scrooge_build
-            
-CLEAN_RULES=blockaligner_clean \
-            edlib_clean \
-            gaba_clean \
+
+CLEAN_RULES=edlib_clean \
             parasail_clean
 
+ARCH := $(shell uname -m)
+
+# libgaba only supports x86_64
+ifneq ($(ARCH), aarch64)
+	BUILD_RULES+=blockaligner_build \
+				  gaba_build
+	CLEAN_RULES+=blockaligner_clean \
+			     gaba_clean
+endif
+            
 all: prepare $(BUILD_RULES)
 
 prepare:

@@ -13,7 +13,6 @@ MODULES=benchmark_bitpal \
         benchmark_daligner \
         benchmark_diffutils \
         benchmark_edlib \
-        benchmark_gaba \
         benchmark_ksw2 \
         benchmark_lv89 \
         benchmark_parasail \
@@ -23,6 +22,11 @@ MODULES=benchmark_bitpal \
         benchmark_seqan \
         benchmark_wfalm_bindings \
         benchmark_wfalm
+
+ARCH := $(shell uname -m)
+ifneq ($(ARCH), aarch64)
+        MODULES+=benchmark_gaba
+endif
         
 SRCS=$(addsuffix .c, $(MODULES))
 OBJS=$(addprefix $(FOLDER_BUILD)/, $(SRCS:.c=.o))

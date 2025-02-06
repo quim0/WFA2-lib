@@ -65,11 +65,17 @@ typedef enum {
   // External algorithms
   alignment_bitpal_edit,
   alignment_bitpal_scored,
+// blockaligner is only supported in x86_64
+#ifndef __aarch64__
   alignment_blockaligner,
+#endif
   alignment_daligner,
   alignment_diffutils,
   alignment_edlib,
+// libgaba is only supported in x86_64
+#ifndef __aarch64__
   alignment_gaba_aband,
+#endif // __aarch64__
   alignment_ksw2_extz2_sse,
   alignment_ksw2_extd2_sse,
 #ifdef __AVX2__

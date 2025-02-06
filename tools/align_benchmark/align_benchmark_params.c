@@ -138,17 +138,27 @@ void usage() {
       "            [External/BitPal]                                           \n"
       "              bitpal-edit          (Edit)[score-only]                   \n"
       "              bitpal-scored        (Gap-linear)[score-only]             \n"
+// blockaligner is only supported in x86_64
+#ifndef __aarch64__
       "            [External/BlockAligner]                                     \n"
       "              block-aligner        (Gap-affine)                         \n"
+#endif
       "            [External/Daligner]                                         \n"
       "              daligner             (Edit)                               \n"
       "            [External/Diffutils]                                        \n"
       "              diffutils            (Edit)                               \n"
       "            [External/Edlib]                                            \n"
       "              edlib                (Edit)                               \n"
+// libgaba is only supported in x86_64
+#ifndef __aarch64__
       "            [External/GABA]                                             \n"
       "              gaba-aband           (Gap-affine)                         \n"
+#endif // __aarch64__
       "            [External/KSW2]                                             \n"
+#ifdef __aarch64__
+      "              ksw2-extz2-neon       (Gap-affine)                         \n"
+      "              ksw2-extd2-neon       (Gap-affine-2pieces)                 \n"
+#else // x86_64
       "              ksw2-extz2-sse       (Gap-affine)                         \n"
       "              ksw2-extd2-sse       (Gap-affine-2pieces)                 \n"
 #ifdef __AVX2__
@@ -161,6 +171,7 @@ void usage() {
       "              ksw2-extd2-avx512      (Gap-affine-2pieces)               \n"
       "              mmfast-extd2-avx512    (Gap-affine-2pieces)               \n"
 #endif
+#endif // __aarch64__
       "            [External/LV89]                                             \n"
       "              lv89                 (Edit)[score-only]                   \n"
       "            [External/Parasail]                                         \n"
@@ -339,9 +350,12 @@ void parse_arguments(
         parameters.algorithm = alignment_bitpal_edit;
       } else if (strcmp(optarg,"bitpal-scored")==0) {
         parameters.algorithm = alignment_bitpal_scored;
+// blockaligner is only supported in x86_64
+#ifndef __aarch64__
       // External (BlockAligner)
       } else if (strcmp(optarg,"block-aligner")==0) {
         parameters.algorithm = alignment_blockaligner;
+#endif
       // External (Daligner)
       } else if (strcmp(optarg,"daligner")==0) {
         parameters.algorithm = alignment_daligner;
@@ -352,13 +366,22 @@ void parse_arguments(
       } else if (strcmp(optarg,"edlib")==0) {
         parameters.algorithm = alignment_edlib;
       // External (Gaba)
+#ifndef __aarch64__
       } else if (strcmp(optarg,"gaba-aband")==0) {
         parameters.algorithm = alignment_gaba_aband;
+#endif // __aarch64__
       // External (KSW2)
+#ifdef __aarch64__
+      } else if (strcmp(optarg,"ksw2-extz2-neon")==0) {
+        parameters.algorithm = alignment_ksw2_extz2_sse;
+      } else if (strcmp(optarg,"ksw2-extd2-neon")==0) {
+        parameters.algorithm = alignment_ksw2_extd2_sse;
+#else
       } else if (strcmp(optarg,"ksw2-extz2-sse")==0) {
         parameters.algorithm = alignment_ksw2_extz2_sse;
       } else if (strcmp(optarg,"ksw2-extd2-sse")==0) {
         parameters.algorithm = alignment_ksw2_extd2_sse;
+#endif
 #ifdef __AVX2__
       } else if (strcmp(optarg,"ksw2-extz2-avx2")==0) {
         parameters.algorithm = alignment_ksw2_extz2_avx2;

@@ -11,11 +11,23 @@ ifeq ($(UNAME), Linux)
   LD_FLAGS+=-lrt 
 endif
 
+ARCH := $(shell uname -m)
+
 LI_FLAGS=-L$(FOLDER_LIB) -I$(FOLDER_ROOT) -I$(FOLDER_WFA) -I.
 LIB_WFA=$(FOLDER_LIB)/libwfa.a
-LIB_BLOCKALIGNER=external/block-aligner/c/target/release/
 LIB_EDLIB=external/edlib/build/lib/
-LIB_GABA=external/libgaba/libgaba.a
+
+# libgaba only supports x86_64
+ifneq ($(ARCH), aarch64)
+  LIB_GABA=external/libgaba/build/libgaba.a
+  LIB_BLOCKALIGNER=-Lexternal/block-aligner/c/target/release/
+  BLOCKALIGNER_ARGS=-Wl,-rpath=$(PWD)/tools/align_benchmark/$(LIB_BLOCKALIGNER) -lblock_aligner_c # BlockAligner
+else
+  LIB_GABA=
+  LIB_BLOCKALIGNER=
+  BLOCKALIGNER_ARGS=
+endif
+
 LIB_PARASAIL=external/parasail/build/libparasail.a
 ###############################################################################
 # Rules
@@ -32,7 +44,7 @@ all: setup
 all: $(SUBDIRS)
 all: OBJS+=$(FOLDER_BUILD)/*.o
 all: OBJS+=external/build/*.o
-all: LD_FLAGS+=-L$(LIB_BLOCKALIGNER) -Wl,-rpath=$(PWD)/tools/align_benchmark/$(LIB_BLOCKALIGNER) -lblock_aligner_c # BlockAligner
+all: LD_FLAGS+=$(LIB_BLOCKALIGNER) $(BLOCKALIGNER_ARGS)
 all: LD_FLAGS+=-L$(LIB_EDLIB) -Wl,-rpath=$(PWD)/tools/align_benchmark/$(LIB_EDLIB) -ledlib # Edlib
 all: LD_FLAGS+=$(LIB_GABA) # Gaba
 all: LD_FLAGS+=$(LIB_PARASAIL) # Parasail

@@ -1,5 +1,5 @@
 CC=			gcc
-CFLAGS=		-g -Wall -Wextra -Wc++-compat -O2
+CFLAGS=		-g -Wall -Wextra -Wc++-compat -O2 -march=native
 CPPFLAGS=	-DHAVE_KALLOC
 INCLUDES=	-I.
 OBJS=		ksw2_gg.o ksw2_gg2.o ksw2_gg2_sse.o ksw2_extz.o ksw2_extz2_sse.o \
@@ -20,12 +20,11 @@ ifneq ($(parasail),) # parasail install prefix
 	LIBS_MORE += $(parasail)/lib/libparasail.a # don't link against the dynamic library
 endif
 
-ifeq ($(sse2),)
-	CFLAGS += -march=native
-endif
-
-ifneq ($(avx2),)
-	CFLAGS += -mavx2
+# Only support aarch64 ARM
+ARCH := $(shell uname -m)
+ifeq ($(ARCH), aarch64)
+	CFLAGS += -mcpu=native -Isse2neon -D__SSE2__ -DKSW_SSE2_ONLY -Wno-unused-parameter
+	CFLAGS += -D_FILE_OFFSET_BITS=64 -fsigned-char
 endif
 
 .SUFFIXES:.c .o

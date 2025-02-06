@@ -467,11 +467,14 @@ void align_benchmark_run_algorithm(
       case alignment_bitpal_scored:
         benchmark_bitpal_m1_x4_g2(align_input);
         break;
+// blockaligner is only supported in x86_64
+#ifndef __aarch64__
       case alignment_blockaligner:
         benchmark_blockaligner_global_affine(
             align_input,&parameters.affine_penalties,
             parameters.ba_block_size);
         break;
+#endif
       case alignment_daligner:
         benchmark_daligner(align_input);
         break;
@@ -481,9 +484,12 @@ void align_benchmark_run_algorithm(
       case alignment_edlib:
         benchmark_edlib(align_input);
         break;
+// libgaba is only supported in x86_64
+#ifndef __aarch64__
       case alignment_gaba_aband:
         benchmark_gaba_aband(align_input,&parameters.affine_penalties);
         break;
+#endif // __aarch64__
       case alignment_ksw2_extz2_sse:
         benchmark_ksw2_extz2_sse(
             align_input,&parameters.affine_penalties,
