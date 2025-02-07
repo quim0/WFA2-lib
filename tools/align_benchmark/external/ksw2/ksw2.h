@@ -80,6 +80,12 @@ void ksw_extd2_avx512(void *km, int qlen, const uint8_t *query, int tlen, const 
 void ksw_extd2_avx512_mmfast(void *km, int qlen, const uint8_t *query, int tlen, const uint8_t *target, int8_t m, const int8_t *mat,
                    int8_t q, int8_t e, int8_t q2, int8_t e2, int w, int zdrop, int end_bonus, int flag, ksw_extz_t *ez);
 #endif
+#if __ARM_FEATURE_SVE
+void ksw_extz2_sve(void *km, int qlen, const uint8_t *query, int tlen, const uint8_t *target, int8_t m, const int8_t *mat,
+				   int8_t q, int8_t e, int w, int zdrop, int end_bonus, int flag, ksw_extz_t *ez);
+void ksw_extd2_sve(void *km, int qlen, const uint8_t *query, int tlen, const uint8_t *target, int8_t m, const int8_t *mat,
+				   int8_t gapo, int8_t gape, int8_t gapo2, int8_t gape2, int w, int zdrop, int end_bonus, int flag, ksw_extz_t *ez);
+#endif
 /**
  * Global alignment
  *

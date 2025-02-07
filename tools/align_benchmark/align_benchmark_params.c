@@ -158,6 +158,10 @@ void usage() {
 #ifdef __aarch64__
       "              ksw2-extz2-neon       (Gap-affine)                         \n"
       "              ksw2-extd2-neon       (Gap-affine-2pieces)                 \n"
+#ifdef __ARM_FEATURE_SVE
+      "              ksw2-extz2-sve        (Gap-affine)                         \n"
+      "              ksw2-extd2-sve        (Gap-affine-2pieces)                 \n"
+#endif
 #else // x86_64
       "              ksw2-extz2-sse       (Gap-affine)                         \n"
       "              ksw2-extd2-sse       (Gap-affine-2pieces)                 \n"
@@ -376,6 +380,12 @@ void parse_arguments(
         parameters.algorithm = alignment_ksw2_extz2_sse;
       } else if (strcmp(optarg,"ksw2-extd2-neon")==0) {
         parameters.algorithm = alignment_ksw2_extd2_sse;
+#ifdef __ARM_FEATURE_SVE
+      } else if (strcmp(optarg,"ksw2-extz2-sve")==0) {
+        parameters.algorithm = alignment_ksw2_extz2_sve;
+      } else if (strcmp(optarg,"ksw2-extd2-sve")==0) {
+        parameters.algorithm = alignment_ksw2_extd2_sve;
+#endif
 #else
       } else if (strcmp(optarg,"ksw2-extz2-sse")==0) {
         parameters.algorithm = alignment_ksw2_extz2_sse;

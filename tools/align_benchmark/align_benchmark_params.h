@@ -78,6 +78,10 @@ typedef enum {
 #endif // __aarch64__
   alignment_ksw2_extz2_sse,
   alignment_ksw2_extd2_sse,
+#ifdef __ARM_FEATURE_SVE
+  alignment_ksw2_extz2_sve,
+  alignment_ksw2_extd2_sve,
+#endif
 #ifdef __AVX2__
   alignment_ksw2_extz2_avx2,
   alignment_ksw2_extd2_avx2,
