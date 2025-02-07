@@ -2777,7 +2777,7 @@ void ksw_extd2_sve(void *km, int qlen, const uint8_t *query, int tlen, const uin
 			int32_t max_H, max_t;
 			// compute H[], max_H and max_t
 			if (r > 0) {
-				int32_t HH[num_lanes2], tt[num_lanes2], en1 = st0 + (en0 - st0) / (num_lanes2) * (num_lanes2), i;
+				int32_t en1 = st0 + (en0 - st0) / (num_lanes2) * (num_lanes2);
                 svint32_t max_H_, max_t_;
                 max_H = H[en0] = en0 > 0? H[en0-1] + u8[en0] : H[en0] + v8[en0]; // special casing the last element
                 max_t = en0;
@@ -2789,16 +2789,13 @@ void ksw_extd2_sve(void *km, int qlen, const uint8_t *query, int tlen, const uin
                     t_ = svld1sb_s32(strue_b32, (int8_t*)&v8[t]);
                     H1 = svadd_s32_x(strue_b32, H1, t_);
                     svst1_s32(strue_b32, &H[t], H1);
-                    //t_ = svindex_s32(t,1);
-                    t_ = svdup_n_s32(t);
+                    t_ = svindex_s32(t,1);
                     svbool_t mask_cmp = svcmpgt_s32(strue_b32, H1, max_H_);
                     max_H_ = svsel_s32(mask_cmp,H1,max_H_); 
                     max_t_ = svsel_s32(mask_cmp,t_, max_t_);
 				}
-                svst1_s32(strue_b32, &HH[0], max_H_);
-                svst1_s32(strue_b32, &tt[0], max_t_);
-				for (i = 0; i < num_lanes2; ++i)
-					if (max_H < HH[i]) max_H = HH[i], max_t = tt[i] + i;
+				max_H = svmaxv_s32(strue_b32, max_H_);
+			    max_t = svlastb_s32(svcmpeq_n_s32(strue_b32, max_H_, max_H), max_t_);
 				for (; t < en0; ++t) { // for the rest of values that haven't been computed with SSE
 					H[t] += (int32_t)v8[t];
 					if (H[t] > max_H)
