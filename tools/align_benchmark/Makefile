@@ -19,9 +19,9 @@ LIB_EDLIB=external/edlib/build/lib/
 
 # libgaba only supports x86_64
 ifneq ($(ARCH), aarch64)
-  LIB_GABA=external/libgaba/build/libgaba.a
-  LIB_BLOCKALIGNER=-Lexternal/block-aligner/c/target/release/
-  BLOCKALIGNER_ARGS=-Wl,-rpath=$(PWD)/tools/align_benchmark/$(LIB_BLOCKALIGNER) -lblock_aligner_c # BlockAligner
+  LIB_GABA=external/libgaba/libgaba.a
+  LIB_BLOCKALIGNER=external/block-aligner/c/target/release/
+  BLOCKALIGNER_ARGS=-L$(LIB_BLOCKALIGNER) -Wl,-rpath=$(PWD)/tools/align_benchmark/$(LIB_BLOCKALIGNER) -lblock_aligner_c # BlockAligner
 else
   LIB_GABA=
   LIB_BLOCKALIGNER=
@@ -39,12 +39,12 @@ SUBDIRS=benchmark \
         gap_linear \
         indel
 BIN=$(FOLDER_BIN)/align_benchmark
-        
-all: setup 
+
+all: setup
 all: $(SUBDIRS)
 all: OBJS+=$(FOLDER_BUILD)/*.o
 all: OBJS+=external/build/*.o
-all: LD_FLAGS+=$(LIB_BLOCKALIGNER) $(BLOCKALIGNER_ARGS)
+all: LD_FLAGS+=$(BLOCKALIGNER_ARGS)
 all: LD_FLAGS+=-L$(LIB_EDLIB) -Wl,-rpath=$(PWD)/tools/align_benchmark/$(LIB_EDLIB) -ledlib # Edlib
 all: LD_FLAGS+=$(LIB_GABA) # Gaba
 all: LD_FLAGS+=$(LIB_PARASAIL) # Parasail
@@ -54,19 +54,20 @@ all: align_benchmark
 
 align_benchmark: */*.c */*.h align_benchmark.c $(LIB_WFA)
 	$(CC) $(CC_FLAGS) $(LI_FLAGS) $(OBJS) align_benchmark_params.c align_benchmark.c -o $(BIN) $(LD_FLAGS) -lwfa -lm -fopenmp
-	
+
 setup:
 	@mkdir -p $(FOLDER_BUILD)
 
-clean: 
+clean:
 	rm -rf $(FOLDER_BUILD)
-	
+
 ###############################################################################
 # Subdir rule
 ###############################################################################
 export
 $(SUBDIRS):
 	$(MAKE) --directory=$@ all
-	
+
 .PHONY: $(SUBDIRS)
+
 
