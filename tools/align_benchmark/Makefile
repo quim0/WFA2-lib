@@ -8,7 +8,11 @@ FOLDER_BIN=$(FOLDER_ROOT)/bin
 FOLDER_BUILD=./build
 
 ifeq ($(UNAME), Linux)
-  LD_FLAGS+=-lrt 
+  LD_FLAGS+=-lrt
+endif
+
+ifeq ($(BUILD_WFA_PARALLEL),1)
+PFLAGS=-DWFA_PARALLEL -fopenmp
 endif
 
 ARCH := $(shell uname -m)
@@ -53,7 +57,7 @@ all: LD_FLAGS+=-lstdc++ # SeqAn
 all: align_benchmark
 
 align_benchmark: */*.c */*.h align_benchmark.c $(LIB_WFA)
-	$(CC) $(CC_FLAGS) $(LI_FLAGS) $(OBJS) align_benchmark_params.c align_benchmark.c -o $(BIN) $(LD_FLAGS) -lwfa -lm -fopenmp
+	$(CC) $(CC_FLAGS) $(LI_FLAGS) $(PFLAGS) $(OBJS) align_benchmark_params.c align_benchmark.c -o $(BIN) $(LD_FLAGS) -lwfa -lm -fopenmp
 
 setup:
 	@mkdir -p $(FOLDER_BUILD)
