@@ -36,6 +36,7 @@
 #include "wavefront_extend_kernels.h"
 #include "wavefront_termination.h"
 #include "wavefront_extend_kernels_avx.h"
+#include "wavefront_extend_kernels_sve.h"
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 #define wavefront_extend_matches_kernel wavefront_extend_matches_kernel_blockwise
@@ -109,7 +110,11 @@ FORCE_NO_INLINE void wavefront_extend_matches_packed_end2end(
     #else
       wavefront_extend_matches_packed_end2end_avx2(wf_aligner, mwavefront, lo, hi);
     #endif
+
   #else
+    #ifdef __ARM_FEATURE_SVE
+      wavefront_extend_matches_packed_end2end_sve(wf_aligner, mwavefront, lo, hi);
+    #else
     wf_offset_t* const offsets = mwavefront->offsets;
     int k;
     for (k=lo;k<=hi;++k) {
@@ -119,7 +124,8 @@ FORCE_NO_INLINE void wavefront_extend_matches_packed_end2end(
       // Extend offset
       offsets[k] = wavefront_extend_matches_kernel(wf_aligner,k,offset);
     }
-  #endif
+    #endif // SVE
+  #endif // AVX2
 }
 
 FORCE_NO_INLINE wf_offset_t wavefront_extend_matches_packed_end2end_max(
@@ -133,22 +139,27 @@ FORCE_NO_INLINE wf_offset_t wavefront_extend_matches_packed_end2end_max(
     #else
       return wavefront_extend_matches_packed_end2end_max_avx2(wf_aligner, mwavefront, lo, hi);
     #endif
+
   #else
-    wf_offset_t* const offsets = mwavefront->offsets;
-    wf_offset_t max_antidiag = 0;
-    int k;
-    for (k=lo;k<=hi;++k) {
-      // Fetch offset
-      const wf_offset_t offset = offsets[k];
-      if (offset == WAVEFRONT_OFFSET_NULL) continue;
-      // Extend offset
-      offsets[k] = wavefront_extend_matches_kernel(wf_aligner,k,offset);
-      // Compute max
-      const wf_offset_t antidiag = WAVEFRONT_ANTIDIAGONAL(k,offsets[k]);
-      if (max_antidiag < antidiag) max_antidiag = antidiag;
-    }
-    return max_antidiag;
-  #endif 
+    #ifdef __ARM_FEATURE_SVE
+      return wavefront_extend_matches_packed_end2end_max_sve(wf_aligner, mwavefront, lo, hi);
+    #else
+      wf_offset_t* const offsets = mwavefront->offsets;
+      wf_offset_t max_antidiag = 0;
+      int k;
+      for (k=lo;k<=hi;++k) {
+        // Fetch offset
+        const wf_offset_t offset = offsets[k];
+        if (offset == WAVEFRONT_OFFSET_NULL) continue;
+        // Extend offset
+        offsets[k] = wavefront_extend_matches_kernel(wf_aligner,k,offset);
+        // Compute max
+        const wf_offset_t antidiag = WAVEFRONT_ANTIDIAGONAL(k,offsets[k]);
+        if (max_antidiag < antidiag) max_antidiag = antidiag;
+      }
+      return max_antidiag;
+    #endif // SVE
+  #endif // AVX
 }
 
 FORCE_NO_INLINE bool wavefront_extend_matches_packed_endsfree(
@@ -164,33 +175,37 @@ FORCE_NO_INLINE bool wavefront_extend_matches_packed_endsfree(
       return wavefront_extend_matches_packed_endsfree_avx2(wf_aligner, mwavefront, score, lo, hi);
     #endif
   #else
-  // Parameters
-  wf_offset_t* const offsets = mwavefront->offsets;
-  int k;
-  for (k=lo;k<=hi;++k) {
-    // Fetch offset
-    wf_offset_t offset = offsets[k];
-    if (offset == WAVEFRONT_OFFSET_NULL) continue;
-    // Extend offset
-    offset = wavefront_extend_matches_kernel(wf_aligner,k,offset);
-    offsets[k] = offset;
-    // Check ends-free reaching boundaries
-    if (wavefront_termination_endsfree(wf_aligner,mwavefront,score,k,offset)) {
-      return true; // Quit (we are done)
-    }
-    /*
-     * TODO
-    const int h_pos = WAVEFRONT_H(k,offset);
-    const int v_pos = WAVEFRONT_V(k,offset);
-    if (h_pos >= text_length || v_pos >= pattern_length) { // FIXME Use wherever necessary
-      if (wavefront_extend_endsfree_check_termination(wf_aligner,mwavefront,score,k,offset)) {
+  #ifdef __ARM_FEATURE_SVE
+    return wavefront_extend_matches_packed_endsfree_sve(wf_aligner, mwavefront, score, lo, hi);
+  #else
+    // Parameters
+    wf_offset_t* const offsets = mwavefront->offsets;
+    int k;
+    for (k=lo;k<=hi;++k) {
+      // Fetch offset
+      wf_offset_t offset = offsets[k];
+      if (offset == WAVEFRONT_OFFSET_NULL) continue;
+      // Extend offset
+      offset = wavefront_extend_matches_kernel(wf_aligner,k,offset);
+      offsets[k] = offset;
+      // Check ends-free reaching boundaries
+      if (wavefront_termination_endsfree(wf_aligner,mwavefront,score,k,offset)) {
         return true; // Quit (we are done)
       }
-    */
-  }
-  // Alignment not finished
-  return false;
-  #endif
+      /*
+      * TODO
+      const int h_pos = WAVEFRONT_H(k,offset);
+      const int v_pos = WAVEFRONT_V(k,offset);
+      if (h_pos >= text_length || v_pos >= pattern_length) { // FIXME Use wherever necessary
+        if (wavefront_extend_endsfree_check_termination(wf_aligner,mwavefront,score,k,offset)) {
+          return true; // Quit (we are done)
+        }
+      */
+    }
+    // Alignment not finished
+    return false;
+    #endif // SVE
+  #endif // AVX
 }
 /*
  * Wavefront-Extend Inner Kernel (Custom match function)

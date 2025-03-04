@@ -45,7 +45,19 @@ ifeq ($(BUILD_EXAMPLES),1)
     APPS+=examples
 endif
 
-all: CC_FLAGS+=-O3 -march=native -flto
+# -mcpu is deprecated on x86, but necessary in ARM to get the best performance
+# according to official docs:
+# "-mcpu enables the compiler to use micro-architectural optimizations"
+# https://developer.arm.com/documentation/102131/0100/Part-Two---Preparing-to-migrate-your-optimized-Neon-code-to-SVE
+ARCH := $(shell uname -m)
+ifeq ($(ARCH), aarch64)
+# ARM
+	CC_FLAGS+= -mcpu=native
+else
+# Do nothing
+endif
+
+all: CC_FLAGS+=-O3 -march=native #-flto -ffat-lto-objects
 all: build
 
 debug: build

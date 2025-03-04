@@ -25,6 +25,7 @@ MODULES=wavefront_align \
         wavefront_display \
         wavefront_extend \
         wavefront_extend_kernels_avx \
+        wavefront_extend_kernels_sve \
         wavefront_extend_kernels \
         wavefront_heuristic \
         wavefront_pcigar \

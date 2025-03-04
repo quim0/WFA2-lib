@@ -56,6 +56,9 @@ endif()
 
 if (${CMAKE_BUILD_TYPE} MATCHES Release)
   set(OPTIMIZE_FLAGS "${OPTIMIZE_FLAGS} -march=native -D_FILE_OFFSET_BITS=64")
+  if (${CMAKE_HOST_SYSTEM_PROCESSOR} MATCHES aarch64)
+    set(OPTIMIZE_FLAGS "${OPTIMIZE_FLAGS} -mcpu=native")
+  endif()
 endif()
 
 if ((${CMAKE_BUILD_TYPE} MATCHES Release) OR (${CMAKE_BUILD_TYPE} MATCHES RelWithDebInfo))
@@ -125,6 +128,7 @@ set(wfa2lib_SOURCE
   wavefront/wavefront_unialign.c
   wavefront/wavefront_termination.c
   wavefront/wavefront_extend_kernels_avx.c
+  wavefront/wavefront_extend_kernels_sve.c
   wavefront/wavefront_extend_kernels.c
   system/mm_stack.c
   system/mm_allocator.c
