@@ -9,7 +9,6 @@ FOLDER_BUILD=$(FOLDER_ROOT)/build
 # Modules
 ###############################################################################
 MODULES=benchmark_bitpal \
-        benchmark_blockaligner \
         benchmark_daligner \
         benchmark_diffutils \
         benchmark_edlib \
@@ -25,7 +24,8 @@ MODULES=benchmark_bitpal \
 
 ARCH := $(shell uname -m)
 ifneq ($(ARCH), aarch64)
-        MODULES+=benchmark_gaba
+        MODULES+=benchmark_gaba \
+        	 benchmark_blockaligner
 endif
         
 SRCS=$(addsuffix .c, $(MODULES))
