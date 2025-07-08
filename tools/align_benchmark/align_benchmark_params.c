@@ -139,7 +139,7 @@ void usage() {
       "              bitpal-edit          (Edit)[score-only]                   \n"
       "              bitpal-scored        (Gap-linear)[score-only]             \n"
 // blockaligner is only supported in x86_64
-#ifndef __aarch64__
+#if 0
       "            [External/BlockAligner]                                     \n"
       "              block-aligner        (Gap-affine)                         \n"
 #endif
@@ -150,7 +150,7 @@ void usage() {
       "            [External/Edlib]                                            \n"
       "              edlib                (Edit)                               \n"
 // libgaba is only supported in x86_64
-#ifndef __aarch64__
+#if 0
       "            [External/GABA]                                             \n"
       "              gaba-aband           (Gap-affine)                         \n"
 #endif // __aarch64__
@@ -178,11 +178,13 @@ void usage() {
 #endif // __aarch64__
       "            [External/LV89]                                             \n"
       "              lv89                 (Edit)[score-only]                   \n"
+#if 0
       "            [External/Parasail]                                         \n"
       "              parasail-nw-stripped (Gap-affine)                         \n"
       "              parasail-nw-scan     (Gap-affine)                         \n"
       "              parasail-nw-diag     (Gap-affine)                         \n"
       "              parasail-nw-banded   (Gap-affine)[score-only]             \n"
+#endif
       "            [External/Scrooge]                                          \n"
       "              scrooge              (Edit)                               \n"
       "            [External/SeqAn]                                            \n"
@@ -360,7 +362,7 @@ void parse_arguments(
       } else if (strcmp(optarg,"bitpal-scored")==0) {
         parameters.algorithm = alignment_bitpal_scored;
 // blockaligner is only supported in x86_64
-#ifndef __aarch64__
+#if 0
       // External (BlockAligner)
       } else if (strcmp(optarg,"block-aligner")==0) {
         parameters.algorithm = alignment_blockaligner;
@@ -375,7 +377,7 @@ void parse_arguments(
       } else if (strcmp(optarg,"edlib")==0) {
         parameters.algorithm = alignment_edlib;
       // External (Gaba)
-#ifndef __aarch64__
+#if 0
       } else if (strcmp(optarg,"gaba-aband")==0) {
         parameters.algorithm = alignment_gaba_aband;
 #endif // __aarch64__
@@ -417,6 +419,7 @@ void parse_arguments(
       } else if (strcmp(optarg,"lv89")==0) {
         parameters.algorithm = alignment_lv89;
       // External (Parasail)
+#if 0
       } else if (strcmp(optarg,"parasail-nw-stripped")==0) {
         parameters.algorithm = alignment_parasail_nw_stripped;
       } else if (strcmp(optarg,"parasail-nw-scan")==0) {
@@ -425,6 +428,7 @@ void parse_arguments(
         parameters.algorithm = alignment_parasail_nw_diag;
       } else if (strcmp(optarg,"parasail-nw-banded")==0) {
         parameters.algorithm = alignment_parasail_nw_banded;
+#endif
       // External (Scrooge)
       } else if (strcmp(optarg,"scrooge")==0) {
         parameters.algorithm = alignment_scrooge;
