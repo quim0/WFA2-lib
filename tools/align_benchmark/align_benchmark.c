@@ -54,6 +54,7 @@
 #include "benchmark/benchmark_gap_affine.h"
 #include "benchmark/benchmark_gap_affine2p.h"
 #ifdef EXTERNAL_BENCHMARKS
+#include "external/ksw2/kalloc.h"
 #include "benchmark/external/benchmark_bitpal.h"
 #include "benchmark/external/benchmark_blockaligner.h"
 #include "benchmark/external/benchmark_daligner.h"
@@ -267,6 +268,7 @@ void align_input_configure_global(
   align_input->output_full = parameters.output_full;
   // MM
   align_input->mm_allocator = mm_allocator_new(BUFFER_SIZE_1M);
+  align_input->km           = km_init();
   // WFA
   if (align_benchmark_is_wavefront(parameters.algorithm)) {
     if (parameters.wfa_lambda) {
@@ -320,6 +322,7 @@ void align_benchmark_free(
     align_input_t* const align_input) {
   if (align_input->wf_aligner) wavefront_aligner_delete(align_input->wf_aligner);
   mm_allocator_delete(align_input->mm_allocator);
+  km_destroy(align_input->km);
 }
 /*
  * I/O

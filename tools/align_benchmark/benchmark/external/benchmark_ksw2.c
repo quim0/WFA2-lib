@@ -75,14 +75,13 @@ void benchmark_ksw2_extz2_sse(
   const int gapo = penalties->gap_opening;
   const int gape = penalties->gap_extension;
   // Prepare data
-  void *km = 0;
+  void *km = align_input->km;
   int flag = 0;
   int i, a = sc_mch, b = sc_mis < 0? sc_mis : -sc_mis; // a>0 and b<0
   int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
   int tlen = strlen(tseq), qlen = strlen(qseq);
   uint8_t *ts, *qs, c[256];
-  ksw_extz_t ez;
-  memset(&ez, 0, sizeof(ksw_extz_t));
+  ksw_extz_t* ez = (ksw_extz_t*)kcalloc(km, 1, sizeof(ksw_extz_t));
   memset(c, 4, 256);
   c['A'] = c['a'] = 0; c['C'] = c['c'] = 1;
   c['G'] = c['g'] = 2; c['T'] = c['t'] = 3; // build the encoding table
@@ -95,11 +94,11 @@ void benchmark_ksw2_extz2_sse(
   timer_start(&align_input->timer);
   ksw_extz2_sse(
       km,qlen,(uint8_t*)qseq,tlen,(uint8_t*)tseq,5,
-      mat,gapo,gape,band_width,zdrop,0,flag,&ez);
+      mat,gapo,gape,band_width,zdrop,0,flag,ez);
   timer_stop(&align_input->timer);
   // Adapt CIGAR
   cigar_t cigar;
-  benchmark_ksw2_adapt_cigar(align_input,&ez,&cigar);
+  benchmark_ksw2_adapt_cigar(align_input,ez,&cigar);
   // DEBUG
   if (align_input->debug_flags) {
     benchmark_check_alignment(align_input,&cigar);
@@ -110,7 +109,8 @@ void benchmark_ksw2_extz2_sse(
   }
   // Free
   free(cigar.operations);
-  free(ez.cigar);
+  kfree(km, ez->cigar);
+  kfree(km, ez);
   free(ts);
   free(qs);
 }
@@ -130,14 +130,13 @@ void benchmark_ksw2_extd2_sse(
   const int gapo2 = penalties->gap_opening2;
   const int gape2 = penalties->gap_extension2;
   // Prepare data
-  void *km = 0;
+  void *km = align_input->km;
   int flag = 0;
   int i, a = sc_mch, b = sc_mis < 0? sc_mis : -sc_mis; // a>0 and b<0
   int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
   int tlen = strlen(tseq), qlen = strlen(qseq);
   uint8_t *ts, *qs, c[256];
-  ksw_extz_t ez;
-  memset(&ez, 0, sizeof(ksw_extz_t));
+  ksw_extz_t* ez = (ksw_extz_t*)kcalloc(km, 1, sizeof(ksw_extz_t));
   memset(c, 4, 256);
   c['A'] = c['a'] = 0; c['C'] = c['c'] = 1;
   c['G'] = c['g'] = 2; c['T'] = c['t'] = 3; // build the encoding table
@@ -150,11 +149,11 @@ void benchmark_ksw2_extd2_sse(
   timer_start(&align_input->timer);
   ksw_extd2_sse(
       km,qlen,(uint8_t*)qseq,tlen,(uint8_t*)tseq,5,
-      mat,gapo1,gape1,gapo2,gape2,band_width,zdrop,0,flag,&ez);
+      mat,gapo1,gape1,gapo2,gape2,band_width,zdrop,0,flag,ez);
   timer_stop(&align_input->timer);
   // Adapt CIGAR
   cigar_t cigar;
-  benchmark_ksw2_adapt_cigar(align_input,&ez,&cigar);
+  benchmark_ksw2_adapt_cigar(align_input,ez,&cigar);
   // DEBUG
   if (align_input->debug_flags) {
     benchmark_check_alignment(align_input,&cigar);
@@ -165,7 +164,8 @@ void benchmark_ksw2_extd2_sse(
   }
   // Free
   free(cigar.operations);
-  free(ez.cigar);
+  kfree(km, ez->cigar);
+  kfree(km, ez);
   free(ts);
   free(qs);
 }
@@ -187,14 +187,13 @@ void benchmark_ksw2_extz2_avx2(
   const int gapo = penalties->gap_opening;
   const int gape = penalties->gap_extension;
   // Prepare data
-  void *km = 0;
+  void *km = align_input->km;
   int flag = 0;
   int i, a = sc_mch, b = sc_mis < 0? sc_mis : -sc_mis; // a>0 and b<0
   int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
   int tlen = strlen(tseq), qlen = strlen(qseq);
   uint8_t *ts, *qs, c[256];
-  ksw_extz_t ez;
-  memset(&ez, 0, sizeof(ksw_extz_t));
+  ksw_extz_t* ez = (ksw_extz_t*)kcalloc(km, 1, sizeof(ksw_extz_t));
   memset(c, 4, 256);
   c['A'] = c['a'] = 0; c['C'] = c['c'] = 1;
   c['G'] = c['g'] = 2; c['T'] = c['t'] = 3; // build the encoding table
@@ -207,11 +206,11 @@ void benchmark_ksw2_extz2_avx2(
   timer_start(&align_input->timer);
   ksw_extz2_avx2(
       km,qlen,(uint8_t*)qseq,tlen,(uint8_t*)tseq,5,
-      mat,gapo,gape,band_width,zdrop,0,flag,&ez);
+      mat,gapo,gape,band_width,zdrop,0,flag,ez);
   timer_stop(&align_input->timer);
   // Adapt CIGAR
   cigar_t cigar;
-  benchmark_ksw2_adapt_cigar(align_input,&ez,&cigar);
+  benchmark_ksw2_adapt_cigar(align_input,ez,&cigar);
   // DEBUG
   if (align_input->debug_flags) {
     benchmark_check_alignment(align_input,&cigar);
@@ -222,7 +221,8 @@ void benchmark_ksw2_extz2_avx2(
   }
   // Free
   free(cigar.operations);
-  free(ez.cigar);
+  kfree(km, ez->cigar);
+  kfree(km, ez);
   free(ts);
   free(qs);
 }
@@ -242,14 +242,13 @@ void benchmark_ksw2_extd2_avx2(
   const int gapo2 = penalties->gap_opening2;
   const int gape2 = penalties->gap_extension2;
   // Prepare data
-  void *km = 0;
+  void *km = align_input->km;
   int flag = 0;
   int i, a = sc_mch, b = sc_mis < 0? sc_mis : -sc_mis; // a>0 and b<0
   int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
   int tlen = strlen(tseq), qlen = strlen(qseq);
   uint8_t *ts, *qs, c[256];
-  ksw_extz_t ez;
-  memset(&ez, 0, sizeof(ksw_extz_t));
+  ksw_extz_t* ez = (ksw_extz_t*)kcalloc(km, 1, sizeof(ksw_extz_t));
   memset(c, 4, 256);
   c['A'] = c['a'] = 0; c['C'] = c['c'] = 1;
   c['G'] = c['g'] = 2; c['T'] = c['t'] = 3; // build the encoding table
@@ -262,11 +261,11 @@ void benchmark_ksw2_extd2_avx2(
   timer_start(&align_input->timer);
   ksw_extd2_avx2(
       km,qlen,(uint8_t*)qseq,tlen,(uint8_t*)tseq,5,
-      mat,gapo1,gape1,gapo2,gape2,band_width,zdrop,0,flag,&ez);
+      mat,gapo1,gape1,gapo2,gape2,band_width,zdrop,0,flag,ez);
   timer_stop(&align_input->timer);
   // Adapt CIGAR
   cigar_t cigar;
-  benchmark_ksw2_adapt_cigar(align_input,&ez,&cigar);
+  benchmark_ksw2_adapt_cigar(align_input,ez,&cigar);
   // DEBUG
   if (align_input->debug_flags) {
     benchmark_check_alignment(align_input,&cigar);
@@ -277,7 +276,8 @@ void benchmark_ksw2_extd2_avx2(
   }
   // Free
   free(cigar.operations);
-  free(ez.cigar);
+  kfree(km, ez->cigar);
+  kfree(km, ez);
   free(ts);
   free(qs);
 }
@@ -297,14 +297,13 @@ void benchmark_ksw2_extd2_avx2_mmfast(
   const int gapo2 = penalties->gap_opening2;
   const int gape2 = penalties->gap_extension2;
   // Prepare data
-  void *km = 0;
+  void *km = align_input->km;
   int flag = 0;
   int i, a = sc_mch, b = sc_mis < 0? sc_mis : -sc_mis; // a>0 and b<0
   int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
   int tlen = strlen(tseq), qlen = strlen(qseq);
   uint8_t *ts, *qs, c[256];
-  ksw_extz_t ez;
-  memset(&ez, 0, sizeof(ksw_extz_t));
+  ksw_extz_t* ez = (ksw_extz_t*)kcalloc(km, 1, sizeof(ksw_extz_t));
   memset(c, 4, 256);
   c['A'] = c['a'] = 0; c['C'] = c['c'] = 1;
   c['G'] = c['g'] = 2; c['T'] = c['t'] = 3; // build the encoding table
@@ -317,11 +316,11 @@ void benchmark_ksw2_extd2_avx2_mmfast(
   timer_start(&align_input->timer);
   ksw_extd2_avx2_mmfast(
       km,qlen,(uint8_t*)qseq,tlen,(uint8_t*)tseq,5,
-      mat,gapo1,gape1,gapo2,gape2,band_width,zdrop,0,flag,&ez);
+      mat,gapo1,gape1,gapo2,gape2,band_width,zdrop,0,flag,ez);
   timer_stop(&align_input->timer);
   // Adapt CIGAR
   cigar_t cigar;
-  benchmark_ksw2_adapt_cigar(align_input,&ez,&cigar);
+  benchmark_ksw2_adapt_cigar(align_input,ez,&cigar);
   // DEBUG
   if (align_input->debug_flags) {
     benchmark_check_alignment(align_input,&cigar);
@@ -332,7 +331,8 @@ void benchmark_ksw2_extd2_avx2_mmfast(
   }
   // Free
   free(cigar.operations);
-  free(ez.cigar);
+  kfree(km, ez->cigar);
+  kfree(km, ez);
   free(ts);
   free(qs);
 }
@@ -355,14 +355,13 @@ void benchmark_ksw2_extz2_avx512(
   const int gapo = penalties->gap_opening;
   const int gape = penalties->gap_extension;
   // Prepare data
-  void *km = 0;
+  void *km = align_input->km;
   int flag = 0;
   int i, a = sc_mch, b = sc_mis < 0? sc_mis : -sc_mis; // a>0 and b<0
   int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
   int tlen = strlen(tseq), qlen = strlen(qseq);
   uint8_t *ts, *qs, c[256];
-  ksw_extz_t ez;
-  memset(&ez, 0, sizeof(ksw_extz_t));
+  ksw_extz_t* ez = (ksw_extz_t*)kcalloc(km, 1, sizeof(ksw_extz_t));
   memset(c, 4, 256);
   c['A'] = c['a'] = 0; c['C'] = c['c'] = 1;
   c['G'] = c['g'] = 2; c['T'] = c['t'] = 3; // build the encoding table
@@ -375,11 +374,11 @@ void benchmark_ksw2_extz2_avx512(
   timer_start(&align_input->timer);
   ksw_extz2_avx512(
       km,qlen,(uint8_t*)qseq,tlen,(uint8_t*)tseq,5,
-      mat,gapo,gape,band_width,zdrop,0,flag,&ez);
+      mat,gapo,gape,band_width,zdrop,0,flag,ez);
   timer_stop(&align_input->timer);
   // Adapt CIGAR
   cigar_t cigar;
-  benchmark_ksw2_adapt_cigar(align_input,&ez,&cigar);
+  benchmark_ksw2_adapt_cigar(align_input,ez,&cigar);
   // DEBUG
   if (align_input->debug_flags) {
     benchmark_check_alignment(align_input,&cigar);
@@ -390,7 +389,8 @@ void benchmark_ksw2_extz2_avx512(
   }
   // Free
   free(cigar.operations);
-  free(ez.cigar);
+  kfree(km, ez->cigar);
+  kfree(km, ez);
   free(ts);
   free(qs);
 }
@@ -410,14 +410,13 @@ void benchmark_ksw2_extd2_avx512(
   const int gapo2 = penalties->gap_opening2;
   const int gape2 = penalties->gap_extension2;
   // Prepare data
-  void *km = 0;
+  void *km = align_input->km;
   int flag = 0;
   int i, a = sc_mch, b = sc_mis < 0? sc_mis : -sc_mis; // a>0 and b<0
   int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
   int tlen = strlen(tseq), qlen = strlen(qseq);
   uint8_t *ts, *qs, c[256];
-  ksw_extz_t ez;
-  memset(&ez, 0, sizeof(ksw_extz_t));
+  ksw_extz_t* ez = (ksw_extz_t*)kcalloc(km, 1, sizeof(ksw_extz_t));
   memset(c, 4, 256);
   c['A'] = c['a'] = 0; c['C'] = c['c'] = 1;
   c['G'] = c['g'] = 2; c['T'] = c['t'] = 3; // build the encoding table
@@ -430,11 +429,11 @@ void benchmark_ksw2_extd2_avx512(
   timer_start(&align_input->timer);
   ksw_extd2_avx512(
       km,qlen,(uint8_t*)qseq,tlen,(uint8_t*)tseq,5,
-      mat,gapo1,gape1,gapo2,gape2,band_width,zdrop,0,flag,&ez);
+      mat,gapo1,gape1,gapo2,gape2,band_width,zdrop,0,flag,ez);
   timer_stop(&align_input->timer);
   // Adapt CIGAR
   cigar_t cigar;
-  benchmark_ksw2_adapt_cigar(align_input,&ez,&cigar);
+  benchmark_ksw2_adapt_cigar(align_input,ez,&cigar);
   // DEBUG
   if (align_input->debug_flags) {
     benchmark_check_alignment(align_input,&cigar);
@@ -445,7 +444,8 @@ void benchmark_ksw2_extd2_avx512(
   }
   // Free
   free(cigar.operations);
-  free(ez.cigar);
+  kfree(km, ez->cigar);
+  kfree(km, ez);
   free(ts);
   free(qs);
 }
@@ -465,14 +465,13 @@ void benchmark_ksw2_extd2_avx512_mmfast(
   const int gapo2 = penalties->gap_opening2;
   const int gape2 = penalties->gap_extension2;
   // Prepare data
-  void *km = 0;
+  void *km = align_input->km;
   int flag = 0;
   int i, a = sc_mch, b = sc_mis < 0? sc_mis : -sc_mis; // a>0 and b<0
   int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
   int tlen = strlen(tseq), qlen = strlen(qseq);
   uint8_t *ts, *qs, c[256];
-  ksw_extz_t ez;
-  memset(&ez, 0, sizeof(ksw_extz_t));
+  ksw_extz_t* ez = (ksw_extz_t*)kcalloc(km, 1, sizeof(ksw_extz_t));
   memset(c, 4, 256);
   c['A'] = c['a'] = 0; c['C'] = c['c'] = 1;
   c['G'] = c['g'] = 2; c['T'] = c['t'] = 3; // build the encoding table
@@ -485,11 +484,11 @@ void benchmark_ksw2_extd2_avx512_mmfast(
   timer_start(&align_input->timer);
   ksw_extd2_avx512_mmfast(
       km,qlen,(uint8_t*)qseq,tlen,(uint8_t*)tseq,5,
-      mat,gapo1,gape1,gapo2,gape2,band_width,zdrop,0,flag,&ez);
+      mat,gapo1,gape1,gapo2,gape2,band_width,zdrop,0,flag,ez);
   timer_stop(&align_input->timer);
   // Adapt CIGAR
   cigar_t cigar;
-  benchmark_ksw2_adapt_cigar(align_input,&ez,&cigar);
+  benchmark_ksw2_adapt_cigar(align_input,ez,&cigar);
   // DEBUG
   if (align_input->debug_flags) {
     benchmark_check_alignment(align_input,&cigar);
@@ -500,7 +499,8 @@ void benchmark_ksw2_extd2_avx512_mmfast(
   }
   // Free
   free(cigar.operations);
-  free(ez.cigar);
+  kfree(km, ez->cigar);
+  kfree(km, ez);
   free(ts);
   free(qs);
 }
@@ -520,14 +520,13 @@ void benchmark_ksw2_extz2_sve(
   const int gapo = penalties->gap_opening;
   const int gape = penalties->gap_extension;
   // Prepare data
-  void *km = 0;
+  void *km = align_input->km;
   int flag = 0;
   int i, a = sc_mch, b = sc_mis < 0? sc_mis : -sc_mis; // a>0 and b<0
   int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
   int tlen = strlen(tseq), qlen = strlen(qseq);
   uint8_t *ts, *qs, c[256];
-  ksw_extz_t ez;
-  memset(&ez, 0, sizeof(ksw_extz_t));
+  ksw_extz_t* ez = (ksw_extz_t*)kcalloc(km, 1, sizeof(ksw_extz_t));
   memset(c, 4, 256);
   c['A'] = c['a'] = 0; c['C'] = c['c'] = 1;
   c['G'] = c['g'] = 2; c['T'] = c['t'] = 3; // build the encoding table
@@ -540,11 +539,11 @@ void benchmark_ksw2_extz2_sve(
   timer_start(&align_input->timer);
   ksw_extz2_sve(
       km,qlen,(uint8_t*)qseq,tlen,(uint8_t*)tseq,5,
-      mat,gapo,gape,band_width,zdrop,0,flag,&ez);
+      mat,gapo,gape,band_width,zdrop,0,flag,ez);
   timer_stop(&align_input->timer);
   // Adapt CIGAR
   cigar_t cigar;
-  benchmark_ksw2_adapt_cigar(align_input,&ez,&cigar);
+  benchmark_ksw2_adapt_cigar(align_input,ez,&cigar);
   // DEBUG
   if (align_input->debug_flags) {
     benchmark_check_alignment(align_input,&cigar);
@@ -555,7 +554,8 @@ void benchmark_ksw2_extz2_sve(
   }
   // Free
   free(cigar.operations);
-  free(ez.cigar);
+  kfree(km, ez->cigar);
+  kfree(km, ez);
   free(ts);
   free(qs);
 }
@@ -575,14 +575,13 @@ void benchmark_ksw2_extd2_sve(
   const int gapo2 = penalties->gap_opening2;
   const int gape2 = penalties->gap_extension2;
   // Prepare data
-  void *km = 0;
+  void *km = align_input->km;
   int flag = 0;
   int i, a = sc_mch, b = sc_mis < 0? sc_mis : -sc_mis; // a>0 and b<0
   int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
   int tlen = strlen(tseq), qlen = strlen(qseq);
   uint8_t *ts, *qs, c[256];
-  ksw_extz_t ez;
-  memset(&ez, 0, sizeof(ksw_extz_t));
+  ksw_extz_t* ez = (ksw_extz_t*)kcalloc(km, 1, sizeof(ksw_extz_t));
   memset(c, 4, 256);
   c['A'] = c['a'] = 0; c['C'] = c['c'] = 1;
   c['G'] = c['g'] = 2; c['T'] = c['t'] = 3; // build the encoding table
@@ -595,11 +594,11 @@ void benchmark_ksw2_extd2_sve(
   timer_start(&align_input->timer);
   ksw_extd2_sve(
       km,qlen,(uint8_t*)qseq,tlen,(uint8_t*)tseq,5,
-      mat,gapo1,gape1,gapo2,gape2,band_width,zdrop,0,flag,&ez);
+      mat,gapo1,gape1,gapo2,gape2,band_width,zdrop,0,flag,ez);
   timer_stop(&align_input->timer);
   // Adapt CIGAR
   cigar_t cigar;
-  benchmark_ksw2_adapt_cigar(align_input,&ez,&cigar);
+  benchmark_ksw2_adapt_cigar(align_input,ez,&cigar);
   // DEBUG
   if (align_input->debug_flags) {
     benchmark_check_alignment(align_input,&cigar);
@@ -610,7 +609,8 @@ void benchmark_ksw2_extd2_sve(
   }
   // Free
   free(cigar.operations);
-  free(ez.cigar);
+  kfree(km, ez->cigar);
+  kfree(km, ez);
   free(ts);
   free(qs);
 }
