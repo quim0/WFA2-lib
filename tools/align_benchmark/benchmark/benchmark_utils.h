@@ -79,8 +79,6 @@ typedef struct {
   // MM
   wavefront_aligner_t* wf_aligner;
   mm_allocator_t* mm_allocator;
-  //External Allocator for KSW2
-  void* km; 
   // PROFILE/STATS
   profiler_timer_t timer;
   profiler_counter_t align;

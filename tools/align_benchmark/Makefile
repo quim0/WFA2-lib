@@ -22,7 +22,7 @@ LIB_WFA=$(FOLDER_LIB)/libwfa.a
 LIB_EDLIB=external/edlib/build/lib/
 
 # libgaba only supports x86_64
-ifneq (1,1)
+ifneq ($(ARCH), aarch64)
   LIB_GABA=external/libgaba/libgaba.a
   LIB_BLOCKALIGNER=external/block-aligner/c/target/release/
   BLOCKALIGNER_ARGS=-L$(LIB_BLOCKALIGNER) -Wl,-rpath=$(PWD)/tools/align_benchmark/$(LIB_BLOCKALIGNER) -lblock_aligner_c # BlockAligner
@@ -32,8 +32,7 @@ else
   BLOCKALIGNER_ARGS=
 endif
 
-#LIB_PARASAIL=external/parasail/build/libparasail.a
-LIB_PARASAIL=
+LIB_PARASAIL=external/parasail/build/libparasail.a
 ###############################################################################
 # Rules
 ###############################################################################
@@ -54,6 +53,7 @@ all: LD_FLAGS+=-L$(LIB_EDLIB) -Wl,-rpath=$(PWD)/tools/align_benchmark/$(LIB_EDLI
 all: LD_FLAGS+=$(LIB_GABA) # Gaba
 all: LD_FLAGS+=$(LIB_PARASAIL) # Parasail
 all: LD_FLAGS+=-lstdc++ # SeqAn
+
 all: align_benchmark
 
 align_benchmark: */*.c */*.h align_benchmark.c $(LIB_WFA)

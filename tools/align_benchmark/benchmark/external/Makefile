@@ -44,9 +44,6 @@ $(FOLDER_BUILD)/benchmark_diffutils.o : benchmark_diffutils.c
 $(FOLDER_BUILD)/benchmark_gaba.o : benchmark_gaba.c
 	$(CC) -march=native $(CC_FLAGS) $(LI_FLAGS) -c $< -o $@
 
-$(FOLDER_BUILD)/benchmark_ksw2.o : benchmark_ksw2.c
-	$(CC) $(CC_FLAGS) $(LI_FLAGS) -DHAVE_KALLOC -c $< -o $@
-
 $(FOLDER_BUILD)/benchmark_scrooge_bindings.o : benchmark_scrooge_bindings.cpp
 	$(CPP) -std=c++14 $(CC_FLAGS) $(LI_FLAGS) -I$(FOLDER_ROOT)/external/ -c $< -o $@
 

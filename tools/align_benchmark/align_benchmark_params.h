@@ -66,14 +66,14 @@ typedef enum {
   alignment_bitpal_edit,
   alignment_bitpal_scored,
 // blockaligner is only supported in x86_64
-#if 0
+#ifndef __aarch64__
   alignment_blockaligner,
 #endif
   alignment_daligner,
   alignment_diffutils,
   alignment_edlib,
 // libgaba is only supported in x86_64
-#if 0
+#ifndef __aarch64__
   alignment_gaba_aband,
 #endif // __aarch64__
   alignment_ksw2_extz2_sse,
@@ -93,12 +93,10 @@ typedef enum {
   alignment_mmfast_extd2_avx512,
 #endif
   alignment_lv89,
-#if 0
   alignment_parasail_nw_stripped,
   alignment_parasail_nw_scan,
   alignment_parasail_nw_diag,
   alignment_parasail_nw_banded,
-#endif
   alignment_scrooge,
   alignment_seqan_edit,
   alignment_seqan_edit_bpm,
